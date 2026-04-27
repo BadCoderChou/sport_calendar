@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "calendar_read_reason",
+      "value": "读取日历以检查和更新赛程信息"
+    },
+    {
+      "name": "calendar_write_reason",
+      "value": "将比赛日程写入系统日历"
+    }
+  ]
+}
