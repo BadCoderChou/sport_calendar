@@ -174,7 +174,7 @@ struct Index {
     if (wasSubscribed) {
       try {
         await this.requestCalendarPermission();
-        await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team);
+        await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team, WC_CALENDAR_NAME_PREFIX);
       } catch (e) {
         hilog.warn(DOMAIN, 'SportCalendar', 'Delete WC calendar on untap failed: %{public}s', JSON.stringify(e));
       }
@@ -204,7 +204,7 @@ struct Index {
       for (const countryId of this.subscribedWcIds) {
         const country = WORLD_CUP_TEAMS.find(t => t.id === countryId);
         if (country) {
-          await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team);
+          await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team, WC_CALENDAR_NAME_PREFIX);
         }
       }
       await TeamStore.setWcSubscribedIds([]);
@@ -237,7 +237,8 @@ struct Index {
           const count = await CalendarWriter.writeEvents(
             { id: country.id, name: country.name, color: '', logo: '' } as Team,
             events,
-            '世界杯赛程'
+            '世界杯赛程',
+            WC_CALENDAR_NAME_PREFIX
           );
           await TeamStore.setLastSyncCount(countryId, count);
           totalImported += count;
@@ -450,132 +451,152 @@ struct Index {
 
         // --- Tab 2: 世界杯 ---
         TabContent() {
-          Scroll() {
-            Column() {
-            // WC Header
+          Column() {
+            // ===== 固定 Header（与中超高度一致）=====
             Column() {
               Text('2026 世界杯赛程日历')
-                .fontSize(15)
+                .fontSize(17)
                 .fontWeight(FontWeight.Bold)
                 .margin({ top: 8, bottom: 1 })
-              Text('选择国家 → 订阅日程')
+              Text('选择国家 → 订阅日程 / 删除日程')
                 .fontSize(10)
                 .fontColor('#888888')
-                .margin({ bottom: 4 })
+                .margin({ bottom: 6 })
             }
             .width('100%')
             .alignItems(HorizontalAlign.Center)
 
-            // Hot Countries Grid (3 columns)
-            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-              ForEach(WORLD_CUP_TEAMS.filter(t => t.isHot), (country: WorldCupTeam) => {
-                Stack() {
-                  Column() {
-                    Text(country.emoji)
-                      .fontSize(20)
-                    Text(country.name)
-                      .fontSize(7.5)
-                      .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
-                      .fontWeight(this.isWcCountrySubscribed(country.id) ? FontWeight.Medium : FontWeight.Regular)
-                      .maxLines(1)
-                      .textAlign(TextAlign.Center)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  }
-                  .width('100%')
-                  .height('100%')
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(HorizontalAlign.Center)
+            // ===== 可滚动中间区域（宫格 + 展开/收起按钮）=====
+            Scroll() {
+              Column() {
+                // Hot Countries Grid (3 columns)
+                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                  ForEach(WORLD_CUP_TEAMS.filter(t => t.isHot), (country: WorldCupTeam) => {
+                    Stack() {
+                      Column() {
+                        Text(country.emoji)
+                          .fontSize(20)
+                        Text(country.name)
+                          .fontSize(7.5)
+                          .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
+                          .fontWeight(this.isWcCountrySubscribed(country.id) ? FontWeight.Medium : FontWeight.Regular)
+                          .maxLines(1)
+                          .textAlign(TextAlign.Center)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      }
+                      .width('100%')
+                      .height('100%')
+                      .justifyContent(FlexAlign.Center)
+                      .alignItems(HorizontalAlign.Center)
 
-                  if (this.isWcCountrySubscribed(country.id)) {
-                    Text('\u2713')
-                      .fontSize(10)
-                      .fontColor('#ffffff')
-                      .fontWeight(FontWeight.Bold)
-                      .width(16)
-                      .height(16)
-                      .borderRadius(8)
-                      .backgroundColor('#4caf50')
-                      .textAlign(TextAlign.Center)
-                      .position({ x: '100%', y: 0 })
-                      .translate({ x: '-50%', y: '-25%' })
-                      .zIndex(10)
-                  }
+                      if (this.isWcCountrySubscribed(country.id)) {
+                        Text('\u2713')
+                          .fontSize(10)
+                          .fontColor('#ffffff')
+                          .fontWeight(FontWeight.Bold)
+                          .width(16)
+                          .height(16)
+                          .borderRadius(8)
+                          .backgroundColor('#4caf50')
+                          .textAlign(TextAlign.Center)
+                          .position({ x: '100%', y: 0 })
+                          .translate({ x: '-50%', y: '-25%' })
+                          .zIndex(10)
+                      }
+                    }
+                    .width('32%')
+                    .height(52)
+                    .margin(2)
+                    .padding(3)
+                    .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
+                    .borderRadius(6)
+                    .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
+                    .shadow(this.isWcCountrySubscribed(country.id) ? { radius: 2, color: '#4caf5020' } : { radius: 2, color: '#0000000D' })
+                    .onClick(() => this.onWcTeamTap(country.id))
+                  }, (country: WorldCupTeam) => country.id)
                 }
-                .width('32%')
-                .height(52)
-                .margin(2)
-                .padding(3)
-                .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
-                .borderRadius(6)
-                .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
-                .shadow(this.isWcCountrySubscribed(country.id) ? { radius: 2, color: '#4caf5020' } : { radius: 2, color: '#0000000D' })
-                .onClick(() => this.onWcTeamTap(country.id))
-              }, (country: WorldCupTeam) => country.id)
-            }
-            .padding({ left: 8, right: 8 })
+                .padding({ left: 8, right: 8 })
 
-            // Expand/Collapse button — 固定在宫格下方，始终可见
-            Row() {
-              Text(this.wcExpanded ? '▲ 收起' : '▼ 展开全部 48 个国家')
-                .fontSize(10)
-                .fontColor('#1976d2')
-                .fontWeight(FontWeight.Medium)
-                .padding({ left: 20, right: 20, top: 8, bottom: 8 })
-                .backgroundColor('#e3f2fd')
-                .borderRadius(16)
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.Center)
-            .margin({ top: 6, bottom: 4 })
-            .onClick(() => this.toggleWcExpand())
+                // Expand/Collapse button
+                Row() {
+                  Text(this.wcExpanded ? '▲ 收起' : '▼ 展开全部 48 个国家')
+                    .fontSize(10)
+                    .fontColor('#1976d2')
+                    .fontWeight(FontWeight.Medium)
+                    .padding({ left: 20, right: 20, top: 8, bottom: 8 })
+                    .backgroundColor('#e3f2fd')
+                    .borderRadius(16)
+                }
+                .width('100%')
+                .justifyContent(FlexAlign.Center)
+                .margin({ top: 6, bottom: 4 })
+                .onClick(() => this.toggleWcExpand())
 
-            // All Countries Grid (conditional - only when expanded)
-            if (this.wcExpanded) {
-              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                ForEach(WORLD_CUP_TEAMS.filter(t => !t.isHot), (country: WorldCupTeam) => {
-                  Stack() {
-                    Column() {
-                      Text(country.emoji)
-                        .fontSize(18)
-                      Text(country.name)
-                        .fontSize(7)
-                        .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
-                        .maxLines(1)
-                        .textAlign(TextAlign.Center)
-                        .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    }
-                    .width('100%')
-                    .height('100%')
-                    .justifyContent(FlexAlign.Center)
-                    .alignItems(HorizontalAlign.Center)
+                // All Countries Grid (conditional - only when expanded)
+                if (this.wcExpanded) {
+                  Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                    ForEach(WORLD_CUP_TEAMS.filter(t => !t.isHot), (country: WorldCupTeam) => {
+                      Stack() {
+                        Column() {
+                          Text(country.emoji)
+                            .fontSize(18)
+                          Text(country.name)
+                            .fontSize(7)
+                            .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
+                            .maxLines(1)
+                            .textAlign(TextAlign.Center)
+                            .textOverflow({ overflow: TextOverflow.Ellipsis })
+                        }
+                        .width('100%')
+                        .height('100%')
+                        .justifyContent(FlexAlign.Center)
+                        .alignItems(HorizontalAlign.Center)
 
-                    if (this.isWcCountrySubscribed(country.id)) {
-                      Text('\u2713')
-                        .fontSize(9)
-                        .fontColor('#ffffff')
-                        .fontWeight(FontWeight.Bold)
-                        .width(14)
-                        .height(14)
-                        .borderRadius(7)
-                        .backgroundColor('#4caf50')
-                        .textAlign(TextAlign.Center)
-                        .position({ x: '100%', y: 0 })
-                        .translate({ x: '-50%', y: '-25%' })
-                        .zIndex(10)
-                    }
+                        if (this.isWcCountrySubscribed(country.id)) {
+                          Text('\u2713')
+                            .fontSize(9)
+                            .fontColor('#ffffff')
+                            .fontWeight(FontWeight.Bold)
+                            .width(14)
+                            .height(14)
+                            .borderRadius(7)
+                            .backgroundColor('#4caf50')
+                            .textAlign(TextAlign.Center)
+                            .position({ x: '100%', y: 0 })
+                            .translate({ x: '-50%', y: '-25%' })
+                            .zIndex(10)
+                        }
+                      }
+                      .width('32%')
+                      .height(48)
+                      .margin(2)
+                      .padding(2)
+                      .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
+                      .borderRadius(5)
+                      .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
+                      .onClick(() => this.onWcTeamTap(country.id))
+                    }, (country: WorldCupTeam) => country.id)
                   }
-                  .width('32%')
-                  .height(48)
-                  .margin(2)
-                  .padding(2)
-                  .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
-                  .borderRadius(5)
-                  .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
-                  .onClick(() => this.onWcTeamTap(country.id))
-                }, (country: WorldCupTeam) => country.id)
+                  .padding({ left: 8, right: 8 })
+                }
               }
-              .padding({ left: 8, right: 8 })
+              .width('100%')
             }
+            .scrollBar(BarState.Off)
+            .layoutWeight(1)
+
+            // ===== 固定 Footer（鸣谢 + 按钮栏，顺序与中超一致）=====
+            // Attribution
+            Text('鸣谢：sports-calendar.com 提供赛程赛果')
+              .fontSize(8)
+              .fontColor('#bbbbbb')
+              .textAlign(TextAlign.Center)
+              .margin({ top: 2, bottom: 0 })
+            Text('热门球队置顶显示')
+              .fontSize(7)
+              .fontColor('#cccccc')
+              .textAlign(TextAlign.Center)
+              .margin({ bottom: 4 })
 
             // WC Sync Bar
             Row() {
@@ -585,8 +606,8 @@ struct Index {
                   .backgroundColor(this.subscribedWcIds.length === 0 ? '#cccccc' : '#1976d2')
                   .fontColor(Color.White)
                   .borderRadius(14)
-                  .height(26)
-                  .fontSize(10)
+                  .height(28)
+                  .fontSize(11)
                   .enabled(this.subscribedWcIds.length > 0)
                   .onClick(() => this.onWcSubscribeTap())
               }
@@ -597,29 +618,25 @@ struct Index {
                   .backgroundColor('#ff5252')
                   .fontColor(Color.White)
                   .borderRadius(14)
-                  .height(26)
-                  .fontSize(10)
-                  .margin({ left: 6 })
+                  .height(28)
+                  .fontSize(11)
+                  .margin({ left: 8 })
                   .onClick(() => this.onWcDeleteAllTap())
               }
             }
             .width('100%')
             .justifyContent(FlexAlign.Center)
-            .padding({ top: 2, bottom: 6 })
-
-            Text('数据源：sports-calendar.com')
-              .fontSize(7)
-              .fontColor('#cccccc')
-              .textAlign(TextAlign.Center)
-              .margin({ top: 0, bottom: 2 })
+            .padding({ top: 4, bottom: 8 })
           }
-          .width('100%').backgroundColor('#f5f5f5')
-            .padding({ bottom: 12 })
-            }
-          .scrollBar(BarState.Off)
-          }
+          
+          .width('100%')
+          .backgroundColor('#f5f5f5')
+        }
         .tabBar(this.wcTabBar)
       }
+      .onChange((index: number) => {
+        this.currentTab = index;
+      })
 
       // Loading overlay (shared between tabs)
       if (this.syncing || this.wcSyncing) {
@@ -674,6 +691,7 @@ struct Index {
     .padding({ left: 8, right: 8 })
     .backgroundColor(this.currentTab === 0 ? '#333333' : '#f0f0f0')
     .borderRadius(14)
+    .onClick(() => { this.currentTab = 0; })
   }
 
   @Builder
@@ -691,6 +709,7 @@ struct Index {
     .padding({ left: 8, right: 8 })
     .backgroundColor(this.currentTab === 1 ? '#333333' : '#f0f0f0')
     .borderRadius(14)
+    .onClick(() => { this.currentTab = 1; })
   }
 }
 

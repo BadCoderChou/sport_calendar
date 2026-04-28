@@ -60,9 +60,10 @@ export class CalendarWriter {
    * @param events Parsed match events from ICS
    * @returns Number of events successfully written
    */
-  static async writeEvents(team: Team, events: MatchEvent[], serviceDesc?: string): Promise<number> {
+  static async writeEvents(team: Team, events: MatchEvent[], serviceDesc?: string, calendarNamePrefix?: string): Promise<number> {
     try {
-      const calendarName = CALENDAR_NAME_PREFIX + team.name; // e.g. "中超-北京国安"
+      const prefix = calendarNamePrefix || CALENDAR_NAME_PREFIX;
+      const calendarName = prefix + team.name; // e.g. "中超-北京国安" or "世界杯-阿根廷"
       const context = getApplicationContext();
       const mgr = calendarManager.getCalendarManager(context);
       const calendar = await CalendarWriter.getOrCreateCalendar(mgr, calendarName);
@@ -95,9 +96,10 @@ export class CalendarWriter {
    * Delete the entire calendar for a team (removes all events + calendar container).
    * Called when user unsubscribes from a team.
    */
-  static async deleteCalendar(team: Team): Promise<void> {
+  static async deleteCalendar(team: Team, calendarNamePrefix?: string): Promise<void> {
     try {
-      const targetName = CALENDAR_NAME_PREFIX + team.name;
+      const prefix = calendarNamePrefix || CALENDAR_NAME_PREFIX;
+      const targetName = prefix + team.name;
       const context = getApplicationContext();
       const mgr = calendarManager.getCalendarManager(context);
 
