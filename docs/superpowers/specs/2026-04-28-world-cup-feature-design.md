@@ -58,7 +58,7 @@ export function getWorldCupIcsUrl(countryId: string): string {
 ### 日历命名
 
 - 前缀: `'世界杯-'`
-- 示例: `'世界杯-Brazil'`、`'世界杯-阿根廷'`
+- 使用中文名: `'世界杯-巴西'`、`'世界杯-阿根廷'`（与中超 `中超-北京国安` 风格一致）
 
 ## UI 设计
 
@@ -142,12 +142,15 @@ Tabs 组件
 - 新增 `onWcDeleteAllTap()` 方法
 - 新增 `toggleWcExpand()` 方法
 - Loading 遮罩两套 Tab 共用（根据 currentTab 显示不同文字）
+- `onWcSubscribeTap()` 中调用 `TeamStore.setLastSyncCount(wcCountryId, count)` 记录同步数量
+- **修复**: 删除 Index.ets 第 269 行重复的 `.fontSize(8)` 调用（预存 bug）
 - 中超原有逻辑保持不变
 
 ### 3. TeamStore.ets — 新增存储 key
 
 - `getWcSubscribedIds()`: 读取 wc_subscribed
 - `setWcSubscribedIds(ids)`: 写入 wc_subscribed
+- `toggleWcSubscription(countryId)`: 切换单个国家订阅状态（复用现有 toggleSubscription 模式，操作 wc_subscribed key）
 - `getWcLastSyncTime()`: 读取 wc_last_sync
 - `setWcLastSyncTime(time)`: 写入 wc_last_sync
 - 复用现有的 Preferences 实例和模式
@@ -158,13 +161,40 @@ Tabs 组件
 - 项目结构更新
 - 截图/说明补充
 
+## 需要小幅调整的文件
+
+### CalendarWriter.ets — 参数化 service 描述
+
+当前 `writeOrUpdateEvent()` 硬编码了 `description: '中超联赛赛程'`（第 199、228 行）。需要改为：
+
+**方案**: 给 `writeEvents()` 和 `writeOrUpdateEvent()` 新增可选参数 `serviceDescription?: string`，默认值 `'中超联赛赛程'` 保持向后兼容。世界杯调用时传入 `'世界杯赛程'`。
+
+```typescript
+// 修改前
+static async writeEvents(team: Team, events: MatchEvent[]): Promise<number> {
+  // ...
+  await CalendarWriter.writeOrUpdateEvent(calendar, team.id, event);
+}
+
+// 修改后
+static async writeEvents(team: Team, events: MatchEvent[], serviceDesc?: string): Promise<number> {
+  // ...
+  await CalendarWriter.writeOrUpdateEvent(calendar, team.id, event, serviceDesc);
+}
+```
+
+**类型兼容性**: `WorldCupTeam` 无 `color`/`logo` 字段，但 `CalendarWriter.writeEvents()` 只使用 `team.name` 和 `team.id`（通过 `buildIdentifier`），不访问 `color` 或 `logo`。因此无需修改类型签名，只需新增 `serviceDesc` 参数。
+
 ## 不变更的文件
 
-- `CalendarWriter.ets` — 直接复用（传入不同的 Team 对象即可）
 - `IcsParser.ets` — ICS 格式一致，无需改动
 - `HttpService.ets` — 无需改动
 - `MatchEvent.ets` — 无需改动
 - `module.json5` — 权限已足够（READ/WRITE_CALENDAR, INTERNET）
+
+## ID 命名空间隔离
+
+中超 teamId 使用连字符格式（如 `beijing-guoan`、`shanghai-port`），世界杯 countryId 使用小写英文（如 `brazil`、`argentina`）。两个命名空间天然不重叠，不存在 ID 冲突风险。存储 key 也通过 `csl_subscribed` / `wc_subscribed` 前缀隔离。
 
 ## 实现顺序
 
