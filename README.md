@@ -1,11 +1,13 @@
-# SportCalendar — 中超联赛赛程日历
+# SportCalendar — 运动赛程日历
 
-基于 **HarmonyOS Next（API 6.0.2）** 的 Stage 模型运动日历应用，将中超联赛 16 支球队的赛季赛程一键订阅到系统日历，支持赛前提醒。
+基于 **HarmonyOS Next（API 6.0.2）** 的 Stage 模型运动日历应用，支持 **中超联赛** 和 **2026 世界杯** 赛程一键订阅到系统日历，支持赛前提醒。
 
 ![HarmonyOS](https://img.shields.io/badge/HarmonyOS-Next%20API%206.0.2-blue)
 
 ## 功能特性
 
+- **世界杯订阅** — 2026 世界杯 48 支参赛国赛程，热门 12 强置顶 + 全部展开，以国家维度独立订阅
+- **双 Tab 切换** — 中超联赛 / 世界杯独立视图，各自独立的订阅状态和日历管理
 - **16 支球队赛程** — 覆盖中超联赛全部球队，按拼音排序
 - **一键订阅** — 选择球队后点击"订阅日程"，自动拉取 ICS 数据写入系统日历
 - **独立日历** — 每支球队生成独立的系统日历（`中超-{队名}`），互不干扰
@@ -39,14 +41,14 @@ SportCalendar/
 │   │   │   ├── entryability/
 │   │   │   │   └── EntryAbility.ets    # UIAbility 入口
 │   │   │   ├── pages/
-│   │   │   │   └── Index.ets           # 主页面（球队选择 + 订阅）
+│   │   │   │   └── Index.ets           # 主页面（Tabs: 中超 | 世界杯）
 │   │   │   ├── services/
 │   │   │   │   ├── CalendarWriter.ets # 日历读写（创建/删除/写入事件）
 │   │   │   │   ├── HttpService.ets     # HTTP 请求（ICS 拉取）
 │   │   │   │   ├── IcsParser.ets       # ICS 文件解析器
 │   │   │   │   └── TeamStore.ets      # 本地持久化存储
 │   │   │   ├── constants/
-│   │   │   │   └── Teams.ets          # 球队定义、ICS URL、常量
+│   │   │   │   └── Teams.ets          # 球队/国家定义、ICS URL、常量（CSL + 世界杯）
 │   │   │   └── model/
 │   │   │       └── MatchEvent.ets      # 赛事事件数据模型
 │   │   └── module.json5         # 权限声明、页面路由
