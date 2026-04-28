@@ -114,8 +114,8 @@ Tabs 组件
 
 | Key | 类型 | 用途 |
 |-----|------|------|
-| `wc_subscribed` | `string[]` | 已选世界杯国家 ID 列表 |
-| `wc_last_sync` | `number` | 世界杯上次同步时间戳 |
+| `wc_subscribedIds` | `string[]` | 已选世界杯国家 ID 列表（与 CSL 的 subscribedIds 风格一致） |
+| `wc_lastSyncTime` | `number` | 世界杯上次同步时间戳（与 CSL 的 lastSyncTime 风格一致） |
 | `wc_last_sync_{id}` | `number` | 单个国家上次同步数量 |
 
 ## 文件变更清单
