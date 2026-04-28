@@ -260,6 +260,15 @@ struct Index {
           .fontSize(8)
           .fontColor('#bbbbbb')
           .textAlign(TextAlign.Center)
+          .margin({ top: 2, bottom: 0 })
+        Text('球队按拼音排序')
+          .fontSize(7)
+          .fontColor('#cccccc')
+          .textAlign(TextAlign.Center)
+          .margin({ bottom: 4 })
+          .fontSize(8)
+          .fontColor('#bbbbbb')
+          .textAlign(TextAlign.Center)
           .margin({ top: 2, bottom: 4 })
 
         // Sync Bar — compact buttons
