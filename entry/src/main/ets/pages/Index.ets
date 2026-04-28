@@ -329,7 +329,7 @@ struct Index {
 
   build() {
     Stack() {
-      Tabs({ index: this.currentTab, barPosition: BarPosition.Start }) {
+      Tabs({ index: this.currentTab, barPosition: BarPosition.End }) {
         // --- Tab 1: 中超联赛 ---
         TabContent() {
           Scroll() {
@@ -658,21 +658,22 @@ struct Index {
     .height('100%')
   }
 
-  // Tab bar builders — 胶囊式分段控制器样式
+  // Tab bar builders — 底部胶囊式分段控制器（参考 JD 分类页风格）
   @Builder
   cslTabBar() {
     Column() {
       Text('中超联赛')
         .fontSize(12)
-        .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Medium)
-        .fontColor(this.currentTab === 0 ? '#ffffff' : '#999999')
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.currentTab === 0 ? '#ffffff' : '#666666')
     }
     .width('100%')
-    .height('100%')
+    .height(28)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
-    .backgroundColor(this.currentTab === 0 ? '#1976d2' : 'transparent')
-    .borderRadius(16)
+    .padding({ left: 8, right: 8 })
+    .backgroundColor(this.currentTab === 0 ? '#333333' : '#f0f0f0')
+    .borderRadius(14)
   }
 
   @Builder
@@ -680,15 +681,16 @@ struct Index {
     Column() {
       Text('🏆 世界杯')
         .fontSize(12)
-        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Medium)
-        .fontColor(this.currentTab === 1 ? '#ffffff' : '#999999')
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.currentTab === 1 ? '#ffffff' : '#666666')
     }
     .width('100%')
-    .height('100%')
+    .height(28)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
-    .backgroundColor(this.currentTab === 1 ? '#1976d2' : 'transparent')
-    .borderRadius(16)
+    .padding({ left: 8, right: 8 })
+    .backgroundColor(this.currentTab === 1 ? '#333333' : '#f0f0f0')
+    .borderRadius(14)
   }
 }
 
