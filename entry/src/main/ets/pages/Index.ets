@@ -445,7 +445,6 @@ struct Index {
           .width('100%').backgroundColor('#f5f5f5')
             }
           .scrollBar(BarState.Off)
-          .edge(Edge.Bottom)
           }
         .tabBar(this.cslTabBar)
 
@@ -618,7 +617,6 @@ struct Index {
             .padding({ bottom: 12 })
             }
           .scrollBar(BarState.Off)
-          .edge(Edge.Bottom)
           }
         .tabBar(this.wcTabBar)
       }
