@@ -202,28 +202,31 @@ struct Index {
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
 
-          // Delete All button (only show when has subscriptions)
-          if (this.subscribedIds.length > 0 && !this.syncing) {
-            Button('删除全部')
+          // Buttons column — right-aligned, sync on top, delete below
+          Column() {
+            Button(this.syncing ? '同步中...' : '同步赛程')
               .type(ButtonType.Normal)
-              .backgroundColor('#ff5252')
+              .backgroundColor(this.syncing || this.subscribedIds.length === 0 ? '#cccccc' : '#1976d2')
               .fontColor(Color.White)
-              .borderRadius(18)
+              .borderRadius(20)
               .height(36)
               .width(90)
-              .margin({ right: 8 })
-              .onClick(() => this.onDeleteAllTap())
-          }
+              .enabled(!this.syncing && this.subscribedIds.length > 0)
+              .onClick(() => this.onSyncTap())
 
-          Button(this.syncing ? '同步中...' : '同步赛程')
-            .type(ButtonType.Normal)
-            .backgroundColor(this.syncing || this.subscribedIds.length === 0 ? '#cccccc' : '#1976d2')
-            .fontColor(Color.White)
-            .borderRadius(20)
-            .height(36)
-            .enabled(!this.syncing && this.subscribedIds.length > 0)
-            .width(90)
-            .onClick(() => this.onSyncTap())
+            if (this.subscribedIds.length > 0 && !this.syncing) {
+              Button('删除日程')
+                .type(ButtonType.Normal)
+                .backgroundColor('#ff5252')
+                .fontColor(Color.White)
+                .borderRadius(18)
+                .height(36)
+                .width(90)
+                .margin({ top: 8 })
+                .onClick(() => this.onDeleteAllTap())
+            }
+          }
+          .alignItems(HorizontalAlign.End)
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceBetween)
