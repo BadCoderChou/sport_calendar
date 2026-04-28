@@ -60,7 +60,7 @@ export class CalendarWriter {
    * @param events Parsed match events from ICS
    * @returns Number of events successfully written
    */
-  static async writeEvents(team: Team, events: MatchEvent[]): Promise<number> {
+  static async writeEvents(team: Team, events: MatchEvent[], serviceDesc?: string): Promise<number> {
     try {
       const calendarName = CALENDAR_NAME_PREFIX + team.name; // e.g. "中超-北京国安"
       const context = getApplicationContext();
@@ -72,7 +72,7 @@ export class CalendarWriter {
 
       for (const event of events) {
         try {
-          await CalendarWriter.writeOrUpdateEvent(calendar, team.id, event);
+          await CalendarWriter.writeOrUpdateEvent(calendar, team.id, event, serviceDesc);
           writtenCount++;
         } catch (e) {
           hilog.warn(DOMAIN, 'SportCalendar',
@@ -181,6 +181,7 @@ export class CalendarWriter {
     calendar: calendarManager.Calendar,
     teamId: string,
     event: MatchEvent,
+    serviceDesc?: string,
   ): Promise<void> {
     const scopedUid = CalendarWriter.buildIdentifier(teamId, event.uid);
     const existing = await CalendarWriter.findEventByIdentifier(calendar, scopedUid);
@@ -199,7 +200,7 @@ export class CalendarWriter {
         service: {
           type: calendarManager.ServiceType.SPORTS_EVENTS,
           uri: '',
-          description: '中超联赛赛程',
+          description: serviceDesc || '中超联赛赛程',
         },
         identifier: scopedUid,
       };
@@ -226,7 +227,7 @@ export class CalendarWriter {
       service: {
         type: calendarManager.ServiceType.SPORTS_EVENTS,
         uri: '',
-        description: '中超联赛赛程',
+        description: serviceDesc || '中超联赛赛程',
       },
       identifier: scopedUid,
     };
