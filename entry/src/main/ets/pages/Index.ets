@@ -132,7 +132,10 @@ struct Index {
   async requestCalendarPermission(): Promise<void> {
     try {
       const atManager = abilityAccessCtrl.createAtManager();
-      await atManager.requestPermissionsFromUser(getContext(), ['ohos.permission.WRITE_CALENDAR']);
+      const result = await atManager.requestPermissionsFromUser(getContext(),
+        ['ohos.permission.READ_CALENDAR', 'ohos.permission.WRITE_CALENDAR']);
+      hilog.info(DOMAIN, 'SportCalendar',
+        'Permission result: %{public}s', JSON.stringify(result));
     } catch (e) {
       const error = e as Error;
       hilog.error(DOMAIN, 'SportCalendar', 'Permission request failed: %{public}s', JSON.stringify(error));
