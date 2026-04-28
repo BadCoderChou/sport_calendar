@@ -329,7 +329,7 @@ struct Index {
 
   build() {
     Stack() {
-      Tabs({ index: this.currentTab, barPosition: BarPosition.Start, animationDuration: 200 }) {
+      Tabs({ index: this.currentTab, barPosition: BarPosition.Start }) {
         // --- Tab 1: 中超联赛 ---
         TabContent() {
           Column() {
