@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B623BF2E862A7BD11C66BD04E779871B9B7A1B383D99B6ED2ABAC7752516E568A332EEA141A3F60",
+          "profile": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.p12",
+          "storePassword": "0000001B4C74AFA71353B76DA024D3CD4D370D3233D77E270999D15E93233D14D06DEDD6BBCCEF49A560A7"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
