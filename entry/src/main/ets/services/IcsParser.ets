@@ -78,7 +78,7 @@ export class IcsParser {
       location: props['LOCATION'] || '',
       description: props['DESCRIPTION'] || '',
       status,
-      reminderMinutes: 30,
+      reminderMinutes: 120,
     };
   }
 

@@ -72,7 +72,7 @@ export class CalendarWriter {
 
       for (const event of events) {
         try {
-          await CalendarWriter.writeOrUpdateEvent(calendar, event);
+          await CalendarWriter.writeOrUpdateEvent(calendar, team.id, event);
           writtenCount++;
         } catch (e) {
           hilog.warn(DOMAIN, 'SportCalendar',
@@ -162,13 +162,6 @@ export class CalendarWriter {
     };
     const calendar = await mgr.createCalendar(account);
 
-    // Set calendar color from team color (best-effort)
-    try {
-      await calendar.setConfig({ enableReminder: true });
-    } catch (_) {
-      // Config set is optional; ignore failure
-    }
-
     hilog.info(DOMAIN, 'SportCalendar', 'Created new calendar: %{public}s', name);
     return calendar;
   }
@@ -186,9 +179,11 @@ export class CalendarWriter {
    */
   private static async writeOrUpdateEvent(
     calendar: calendarManager.Calendar,
+    teamId: string,
     event: MatchEvent,
   ): Promise<void> {
-    const existing = await CalendarWriter.findEventByIdentifier(calendar, event.uid);
+    const scopedUid = CalendarWriter.buildIdentifier(teamId, event.uid);
+    const existing = await CalendarWriter.findEventByIdentifier(calendar, scopedUid);
 
     if (existing && existing.id !== undefined) {
       // Update existing event — must include the system-assigned id
@@ -206,7 +201,7 @@ export class CalendarWriter {
           uri: '',
           description: '中超联赛赛程',
         },
-        identifier: event.uid,
+        identifier: scopedUid,
       };
 
       try {
@@ -233,10 +228,23 @@ export class CalendarWriter {
         uri: '',
         description: '中超联赛赛程',
       },
-      identifier: event.uid,
+      identifier: scopedUid,
     };
 
     await calendar.addEvent(newEvent);
+  }
+
+  /**
+   * Build a team-scoped identifier to avoid UID collisions across team calendars.
+   *
+   * When two teams play each other (e.g., 上海海港 vs 天津津门虎), the ICS API
+   * returns the same UID in both teams' ICS feeds. Without scoping, the second
+   * team's write would match the first team's existing event (via getEvents()
+   * which may return cross-calendar results) and update it instead of creating
+   * a new one in the correct calendar.
+   */
+  private static buildIdentifier(teamId: string, uid: string): string {
+    return `${teamId}:${uid}`;
   }
 
   /**
