@@ -332,7 +332,8 @@ struct Index {
       Tabs({ index: this.currentTab, barPosition: BarPosition.Start }) {
         // --- Tab 1: 中超联赛 ---
         TabContent() {
-          Column() {
+          Scroll() {
+            Column() {
             // Header (不变)
             Column() {
               Text('中超联赛赛程日历')
@@ -441,13 +442,17 @@ struct Index {
             .justifyContent(FlexAlign.Center)
             .padding({ top: 4, bottom: 8 })
           }
-          .width('100%').height('100%').backgroundColor('#f5f5f5')
-        }
+          .width('100%').backgroundColor('#f5f5f5')
+            }
+          .scrollBar(BarState.Off)
+          .edge(Edge.Bottom)
+          }
         .tabBar(this.cslTabBar)
 
         // --- Tab 2: 世界杯 ---
         TabContent() {
-          Column() {
+          Scroll() {
+            Column() {
             // WC Header
             Column() {
               Text('2026 世界杯赛程日历')
@@ -510,16 +515,19 @@ struct Index {
             }
             .padding({ left: 8, right: 8 })
 
-            // Expand/Collapse button
+            // Expand/Collapse button — 固定在宫格下方，始终可见
             Row() {
               Text(this.wcExpanded ? '▲ 收起' : '▼ 展开全部 48 个国家')
-                .fontSize(9)
-                .fontColor('#666666')
-                .padding({ left: 14, right: 14, top: 5, bottom: 5 })
+                .fontSize(10)
+                .fontColor('#1976d2')
+                .fontWeight(FontWeight.Medium)
+                .padding({ left: 20, right: 20, top: 8, bottom: 8 })
+                .backgroundColor('#e3f2fd')
+                .borderRadius(16)
             }
             .width('100%')
             .justifyContent(FlexAlign.Center)
-            .margin({ top: 2, bottom: 2 })
+            .margin({ top: 6, bottom: 4 })
             .onClick(() => this.toggleWcExpand())
 
             // All Countries Grid (conditional - only when expanded)
@@ -606,10 +614,12 @@ struct Index {
               .textAlign(TextAlign.Center)
               .margin({ top: 0, bottom: 2 })
           }
-          .width('100%')
-          .height('100%')
-          .backgroundColor('#f5f5f5')
-        }
+          .width('100%').backgroundColor('#f5f5f5')
+            .padding({ bottom: 12 })
+            }
+          .scrollBar(BarState.Off)
+          .edge(Edge.Bottom)
+          }
         .tabBar(this.wcTabBar)
       }
 
@@ -650,33 +660,37 @@ struct Index {
     .height('100%')
   }
 
-  // Tab bar builders
+  // Tab bar builders — 胶囊式分段控制器样式
   @Builder
   cslTabBar() {
     Column() {
       Text('中超联赛')
-        .fontSize(11)
-        .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Regular)
-        .fontColor(this.currentTab === 0 ? '#1976d2' : '#999999')
+        .fontSize(12)
+        .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Medium)
+        .fontColor(this.currentTab === 0 ? '#ffffff' : '#999999')
     }
     .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.currentTab === 0 ? '#1976d2' : 'transparent')
+    .borderRadius(16)
   }
 
   @Builder
   wcTabBar() {
     Column() {
       Text('🏆 世界杯')
-        .fontSize(11)
-        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Regular)
-        .fontColor(this.currentTab === 1 ? '#1976d2' : '#999999')
+        .fontSize(12)
+        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Medium)
+        .fontColor(this.currentTab === 1 ? '#ffffff' : '#999999')
     }
     .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.currentTab === 1 ? '#1976d2' : 'transparent')
+    .borderRadius(16)
   }
 }
 
