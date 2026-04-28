@@ -67,13 +67,17 @@ struct Index {
   async onDeleteAllTap(): Promise<void> {
     if (this.syncing || this.subscribedIds.length === 0) return;
 
+    hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: subscribedIds=%{public}s', JSON.stringify(this.subscribedIds));
     await this.requestCalendarPermission();
+    hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: permission requested, proceeding...');
 
     try {
       for (const teamId of this.subscribedIds) {
         const team = CSL_TEAMS.find(t => t.id === teamId);
         if (team) {
+          hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: deleting calendar for %{public}s', team.name);
           await CalendarWriter.deleteCalendar(team);
+          hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: deleted %{public}s OK', team.name);
         }
       }
       await TeamStore.setSubscribedIds([]);
