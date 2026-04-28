@@ -101,8 +101,18 @@ export class CalendarWriter {
       const context = getApplicationContext();
       const mgr = calendarManager.getCalendarManager(context);
 
+      hilog.info(DOMAIN, 'SportCalendar', 'deleteCalendar: looking for %{public}s', targetName);
+
       // List all calendars and find the one matching our naming convention
       const calendars = await mgr.getAllCalendars();
+      hilog.info(DOMAIN, 'SportCalendar', 'deleteCalendar: total calendars=%{public}d', calendars.length);
+
+      for (const cal of calendars) {
+        const account = cal.getAccount();
+        hilog.info(DOMAIN, 'SportCalendar',
+          '  calendar: name=%{public}s, type=%{public}s', account.name, account.type);
+      }
+
       const target = calendars.find((cal) => {
         const account = cal.getAccount();
         return account.name === targetName && account.type === calendarManager.CalendarType.LOCAL;
@@ -113,8 +123,8 @@ export class CalendarWriter {
         await mgr.deleteCalendar(target);
         hilog.info(DOMAIN, 'SportCalendar', 'Deleted calendar: %{public}s', targetName);
       } else {
-        hilog.info(DOMAIN, 'SportCalendar',
-          'Calendar not found for deletion: %{public}s', targetName);
+        hilog.warn(DOMAIN, 'SportCalendar',
+          'Calendar NOT FOUND for deletion: %{public}s', targetName);
       }
     } catch (e) {
       hilog.error(DOMAIN, 'SportCalendar', 'deleteCalendar failed: %{public}s', JSON.stringify(e));
