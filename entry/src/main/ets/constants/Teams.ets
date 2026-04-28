@@ -5,6 +5,13 @@ export interface Team {
   logo: ResourceStr;
 }
 
+export interface WorldCupTeam {
+  id: string;       // 如 'brazil', 'argentina'（对应 ICS API 的 team 参数）
+  name: string;     // 中文名：'巴西'、'阿根廷'
+  emoji: string;    // 国旗 emoji：'🇧🇷'、'🇦🇷'
+  isHot: boolean;   // 是否为热门强队（前 12 个置顶显示）
+}
+
 export const CSL_TEAMS: Team[] = [
   { id: 'beijing-guoan', name: '北京国安', color: '#00AA33', logo: $r('app.media.beijing_guoan') },
   { id: 'chengdu-rongcheng', name: '成都蓉城', color: '#FFCC00', logo: $r('app.media.chengdu_rongcheng') },
@@ -36,3 +43,83 @@ export function getIcsUrl(teamId: string): string {
 }
 
 export const CALENDAR_NAME_PREFIX = '中超-';
+
+export const WC_ICS_BASE_URL =
+  'https://api.sports-calendar.com/ics/soccer/fifa-world-cup/2026/matches.ics';
+
+export function getWorldCupIcsUrl(countryId: string): string {
+  return `${WC_ICS_BASE_URL}?lang=zh&team=${countryId}`;
+}
+
+export const WC_CALENDAR_NAME_PREFIX = '世界杯-';
+
+export const WORLD_CUP_TEAMS: WorldCupTeam[] = [
+  // ===== 热门 12 强 (isHot=true) =====
+  { id: 'brazil', name: '巴西', emoji: '🇧🇷', isHot: true },
+  { id: 'argentina', name: '阿根廷', emoji: '🇦🇷', isHot: true },
+  { id: 'france', name: '法国', emoji: '🇫🇷', isHot: true },
+  { id: 'germany', name: '德国', emoji: '🇩🇪', isHot: true },
+  { id: 'spain', name: '西班牙', emoji: '🇪🇸', isHot: true },
+  { id: 'england', name: '英格兰', emoji: '🇬🇧', isHot: true },
+  { id: 'portugal', name: '葡萄牙', emoji: '🇵🇹', isHot: true },
+  { id: 'netherlands', name: '荷兰', emoji: '🇳🇱', isHot: true },
+  { id: 'usa', name: '美国', emoji: '🇺🇸', isHot: true },       // 东道主
+  { id: 'uruguay', name: '乌拉圭', emoji: '🇺🇾', isHot: true },
+  { id: 'japan', name: '日本', emoji: '🇯🇵', isHot: true },
+  { id: 'south-korea', name: '韩国', emoji: '🇰🇷', isHot: true },
+
+  // ===== 其余 36 国 (isHot=false)，按英文名排序 =====
+  // 数据来源: https://sports-calendar.com/zh/soccer/fifa-world-cup/2026/
+  // 完整 48 国名单（已去重验证）
+  { id: 'algeria', name: '阿尔及利亚', emoji: '🇩🇿', isHot: false },
+  { id: 'austria', name: '奥地利', emoji: '🇦🇹', isHot: false },
+  { id: 'australia', name: '澳大利亚', emoji: '🇦🇺', isHot: false },
+  { id: 'belgium', name: '比利时', emoji: '🇧🇪', isHot: false },
+  { id: 'bosnia-herzegovina', name: '波黑', emoji: '🇧🇦', isHot: false },
+  { id: 'canada', name: '加拿大', emoji: '🇨🇦', isHot: false },        // 东道主
+  { id: 'cape-verde', name: '佛得角', emoji: '🇨🇻', isHot: false },
+  { id: 'colombia', name: '哥伦比亚', emoji: '🇨🇴', isHot: false },
+  { id: 'costa-rica', name: '哥斯达黎加', emoji: '🇨🇷', isHot: false },
+  { id: 'croatia', name: '克罗地亚', emoji: '🇭🇷', isHot: false },
+  { id: 'curacao', name: '库拉索', emoji: '🇨🇼', isHot: false },
+  { id: 'czech-republic', name: '捷克', emoji: '🇨🇿', isHot: false },
+  { id: 'denmark', name: '丹麦', emoji: '🇩🇰', isHot: false },
+  { id: 'dr-congo', name: '民主刚果', emoji: '🇨🇩', isHot: false },
+  { id: 'ecuador', name: '厄瓜多尔', emoji: '🇪🇨', isHot: false },
+  { id: 'egypt', name: '埃及', emoji: '🇪🇬', isHot: false },
+  { id: 'ghana', name: '加纳', emoji: '🇬🇭', isHot: false },
+  { id: 'haiti', name: '海地', emoji: '🇭🇹', isHot: false },
+  { id: 'iran', name: '伊朗', emoji: '🇮🇷', isHot: false },
+  { id: 'iraq', name: '伊拉克', emoji: '🇮🇶', isHot: false },
+  { id: 'ivory-coast', name: '科特迪瓦', emoji: '🇨🇮', isHot: false },
+  { id: 'jamaica', name: '牙买加', emoji: '🇯🇲', isHot: false },
+  { id: 'jordan', name: '约旦', emoji: '🇯🇴', isHot: false },
+  { id: 'mexico', name: '墨西哥', emoji: '🇲🇽', isHot: false },      // 东道主
+  { id: 'morocco', name: '摩洛哥', emoji: '🇲🇦', isHot: false },
+  { id: 'new-zealand', name: '新西兰', emoji: '🇳🇿', isHot: false },
+  { id: 'nigeria', name: '尼日利亚', emoji: '🇳🇬', isHot: false },
+  { id: 'norway', name: '挪威', emoji: '🇳🇴', isHot: false },
+  { id: 'oman', name: '阿曼', emoji: '🇴🇲', isHot: false },
+  { id: 'panama', name: '巴拿马', emoji: '🇵🇦', isHot: false },
+  { id: 'paraguay', name: '巴拉圭', emoji: '🇵🇾', isHot: false },
+  { id: 'peru', name: '秘鲁', emoji: '🇵🇪', isHot: false },
+  { id: 'poland', name: '波兰', emoji: '🇵🇱', isHot: false },
+  { id: 'qatar', name: '卡塔尔', emoji: '🇶🇦', isHot: false },         // 东道主
+  { id: 'saudi-arabia', name: '沙特阿拉伯', emoji: '🇸🇦', isHot: false },
+  { id: 'scotland', name: '苏格兰', emoji: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', isHot: false },
+  { id: 'senegal', name: '塞内加尔', emoji: '🇸🇳', isHot: false },
+  { id: 'serbia', name: '塞尔维亚', emoji: '🇷🇸', isHot: false },
+  { id: 'south-africa', name: '南非', emoji: '🇿🇦', isHot: false },
+  { id: 'sweden', name: '瑞典', emoji: '🇸🇪', isHot: false },
+  { id: 'switzerland', name: '瑞士', emoji: '🇨🇭', isHot: false },
+  { id: 'tunisia', name: '突尼斯', emoji: '🇹🇳', isHot: false },
+  { id: 'turkey', name: '土耳其', emoji: '🇹🇷', isHot: false },
+  { id: 'ukraine', name: '乌克兰', emoji: '🇺🇦', isHot: false },
+  { id: 'uzbekistan', name: '乌兹别克斯坦', emoji: '🇺🇿', isHot: false },
+  { id: 'wales', name: '威尔士', emoji: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', isHot: false },
+];
+// 总计: 12 + 36 = 48 国 ✅
+
+export function getWorldCupTeamById(id: string): WorldCupTeam | undefined {
+  return WORLD_CUP_TEAMS.find(t => t.id === id);
+}
