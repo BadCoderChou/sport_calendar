@@ -51,6 +51,7 @@ struct Index {
   }
 
   async deleteTeamCalendar(team: Team): Promise<void> {
+    await this.requestCalendarPermission();
     try {
       await CalendarWriter.deleteCalendar(team);
       await TeamStore.toggleSubscription(team.id);
@@ -65,6 +66,8 @@ struct Index {
 
   async onDeleteAllTap(): Promise<void> {
     if (this.syncing || this.subscribedIds.length === 0) return;
+
+    await this.requestCalendarPermission();
 
     try {
       for (const teamId of this.subscribedIds) {
