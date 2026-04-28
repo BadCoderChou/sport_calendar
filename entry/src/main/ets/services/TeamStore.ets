@@ -70,4 +70,47 @@ export class TeamStore {
     await TeamStore.setSubscribedIds(ids);
     return index < 0;
   }
+
+  // --- World Cup subscription state ---
+
+  static async getWcSubscribedIds(): Promise<string[]> {
+    const pref = await TeamStore.getPref();
+    const json = await pref.get('wc_subscribedIds', '[]');
+    return JSON.parse(json as string) as string[];
+  }
+
+  static async setWcSubscribedIds(ids: string[]): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('wc_subscribedIds', JSON.stringify(ids));
+    await pref.flush();
+  }
+
+  static async toggleWcSubscription(countryId: string): Promise<boolean> {
+    const ids = await TeamStore.getWcSubscribedIds();
+    const index = ids.indexOf(countryId);
+    if (index >= 0) {
+      ids.splice(index, 1);
+    } else {
+      ids.push(countryId);
+    }
+    await TeamStore.setWcSubscribedIds(ids);
+    return index < 0;
+  }
+
+  static async isWcSubscribed(countryId: string): Promise<boolean> {
+    const ids = await TeamStore.getWcSubscribedIds();
+    return ids.includes(countryId);
+  }
+
+  static async getWcLastSyncTime(): Promise<number> {
+    const pref = await TeamStore.getPref();
+    const val = await pref.get('wc_lastSyncTime', 0);
+    return val as number;
+  }
+
+  static async setWcLastSyncTime(time: number): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('wc_lastSyncTime', time);
+    await pref.flush();
+  }
 }
