@@ -35,21 +35,7 @@ export function getTeamById(id: string): Team | undefined {
   return CSL_TEAMS.find(t => t.id === id);
 }
 
-export const ICS_BASE_URL =
-  'https://api.sports-calendar.com/ics/soccer/chinese-super-league/2026/matches.ics';
-
-export function getIcsUrl(teamId: string): string {
-  return `${ICS_BASE_URL}?lang=zh&team=${teamId}`;
-}
-
 export const CALENDAR_NAME_PREFIX = '中超-';
-
-export const WC_ICS_BASE_URL =
-  'https://api.sports-calendar.com/ics/soccer/fifa-world-cup/2026/matches.ics';
-
-export function getWorldCupIcsUrl(countryId: string): string {
-  return `${WC_ICS_BASE_URL}?lang=zh&team=${countryId}`;
-}
 
 export const WC_CALENDAR_NAME_PREFIX = '世界杯-';
 
