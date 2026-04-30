@@ -1,7 +1,7 @@
 {
   "app": {
-    "bundleName": "org.xiaonini.myapplication",
-    "vendor": "example",
+    "bundleName": "com.pandafu.sportcalendar",
+    "vendor": "pandafu",
     "versionCode": 1000000,
     "versionName": "1.0.0",
     "icon": "$media:layered_image",
