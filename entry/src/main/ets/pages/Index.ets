@@ -3,7 +3,7 @@ import { IcsParser } from '../services/IcsParser';
 import { HttpService } from '../services/HttpService';
 import { CalendarWriter } from '../services/CalendarWriter';
 import { TeamStore } from '../services/TeamStore';
-import { promptAction } from '@kit.ArkUI';
+import { promptAction, router } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { abilityAccessCtrl } from '@kit.AbilityKit';
 
@@ -633,6 +633,86 @@ struct Index {
           .backgroundColor('#f5f5f5')
         }
         .tabBar(this.wcTabBar)
+
+        // --- Tab 3: 我的 ---
+        TabContent() {
+          Column() {
+            // 应用信息
+            Column() {
+              Image($r('app.media.foreground'))
+                .width(80)
+                .height(80)
+                .borderRadius(16)
+                .margin({ top: 24, bottom: 12 })
+              Text('赛事日历')
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .margin({ bottom: 2 })
+              Text('v1.0.0')
+                .fontSize(12)
+                .fontColor('#999999')
+                .margin({ bottom: 20 })
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+
+            // 列表卡片
+            Column() {
+              // 隐私协议
+              Row() {
+                Text('隐私协议')
+                  .fontSize(14)
+                  .fontColor('#333333')
+                Text('>')
+                  .fontSize(14)
+                  .fontColor('#cccccc')
+              }
+              .width('100%')
+              .height(48)
+              .padding({ left: 16, right: 16 })
+              .justifyContent(FlexAlign.SpaceBetween)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/PrivacyPolicy' })
+              })
+
+              Divider()
+                .width('calc(100% - 32px)')
+                .margin({ left: 16 })
+                .color('#f5f5f5')
+
+              // 版本号
+              Row() {
+                Text('版本号')
+                  .fontSize(14)
+                  .fontColor('#333333')
+                Text('v1.0.0  >')
+                  .fontSize(12)
+                  .fontColor('#cccccc')
+              }
+              .width('100%')
+              .height(48)
+              .padding({ left: 16, right: 16 })
+              .justifyContent(FlexAlign.SpaceBetween)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/Changelog' })
+              })
+            }
+            .width('calc(100% - 32px)')
+            .backgroundColor('#ffffff')
+            .borderRadius(12)
+            .margin({ top: 0 })
+
+            // 底部版权
+            Text('© 2026 赛事日历')
+              .fontSize(10)
+              .fontColor('#cccccc')
+              .margin({ top: 'auto', bottom: 20 })
+          }
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#f5f5f5')
+        }
+        .tabBar(this.myTabBar)
       }
       .onChange((index: number) => {
         this.currentTab = index;
@@ -710,6 +790,24 @@ struct Index {
     .backgroundColor(this.currentTab === 1 ? '#333333' : '#f0f0f0')
     .borderRadius(14)
     .onClick(() => { this.currentTab = 1; })
+  }
+
+  @Builder
+  myTabBar() {
+    Column() {
+      Text('我的')
+        .fontSize(12)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.currentTab === 2 ? '#ffffff' : '#666666')
+    }
+    .width('100%')
+    .height(28)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .padding({ left: 8, right: 8 })
+    .backgroundColor(this.currentTab === 2 ? '#333333' : '#f0f0f0')
+    .borderRadius(14)
+    .onClick(() => { this.currentTab = 2; })
   }
 }
 
