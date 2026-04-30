@@ -1,11 +1,11 @@
-import { Team, CSL_TEAMS, getIcsUrl, WorldCupTeam, WORLD_CUP_TEAMS, getWorldCupIcsUrl, WC_CALENDAR_NAME_PREFIX } from '../constants/Teams';
+import { Team, CSL_TEAMS, WorldCupTeam, WORLD_CUP_TEAMS, WC_CALENDAR_NAME_PREFIX } from '../constants/Teams';
 import { IcsParser } from '../services/IcsParser';
-import { HttpService } from '../services/HttpService';
+import { DataService } from '../services/DataService';
 import { CalendarWriter } from '../services/CalendarWriter';
 import { TeamStore } from '../services/TeamStore';
 import { promptAction, router } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { abilityAccessCtrl } from '@kit.AbilityKit';
+import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 
 const DOMAIN = 0x0000;
 
@@ -23,10 +23,6 @@ struct Index {
 
   aboutToAppear(): void {
     this.loadSubscriptionState();
-  }
-
-  aboutToDisappear(): void {
-    HttpService.destroy();
   }
 
   async loadSubscriptionState(): Promise<void> {
@@ -102,8 +98,11 @@ struct Index {
     if (this.syncing || this.subscribedIds.length === 0) return;
 
     hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: subscribedIds=%{public}s', JSON.stringify(this.subscribedIds));
-    await this.requestCalendarPermission();
-    hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: permission requested, proceeding...');
+    const granted = await this.requestCalendarPermission();
+    if (!granted) {
+      this.showPermissionDeniedDialog('delete');
+      return;
+    }
 
     try {
       for (const teamId of this.subscribedIds) {
@@ -127,7 +126,11 @@ struct Index {
   async onSubscribeTap(): Promise<void> {
     if (this.syncing || this.subscribedIds.length === 0) return;
 
-    await this.requestCalendarPermission();
+    const granted = await this.requestCalendarPermission();
+    if (!granted) {
+      this.showPermissionDeniedDialog('subscribe');
+      return;
+    }
 
     this.syncing = true;
     let totalImported = 0;
@@ -138,8 +141,8 @@ struct Index {
         if (!team) continue;
 
         try {
-          const url = getIcsUrl(teamId);
-          const icsText = await HttpService.fetchIcs(url);
+          const ctx = getContext() as common.UIAbilityContext;
+          const icsText = await DataService.loadIcs(ctx, `csl/${teamId}.ics`);
           const events = IcsParser.parse(icsText);
           const count = await CalendarWriter.writeEvents(team, events);
           await TeamStore.setLastSyncCount(teamId, count);
@@ -157,7 +160,7 @@ struct Index {
       promptAction.showToast({ message: `已订阅 ${totalImported} 场比赛`, duration: 2000, alignment: Alignment.Center });
     } catch (e) {
       hilog.error(DOMAIN, 'SportCalendar', 'Subscribe error: %{public}s', JSON.stringify(e));
-      promptAction.showToast({ message: '订阅失败，请检查网络后重试', duration: 2000, alignment: Alignment.Center });
+      promptAction.showToast({ message: '订阅失败，请重试', duration: 2000, alignment: Alignment.Center });
     } finally {
       this.syncing = false;
     }
@@ -198,7 +201,11 @@ struct Index {
   async onWcDeleteAllTap(): Promise<void> {
     if (this.wcSyncing || this.subscribedWcIds.length === 0) return;
 
-    await this.requestCalendarPermission();
+    const granted = await this.requestCalendarPermission();
+    if (!granted) {
+      this.showPermissionDeniedDialog('delete');
+      return;
+    }
 
     try {
       for (const countryId of this.subscribedWcIds) {
@@ -220,7 +227,11 @@ struct Index {
   async onWcSubscribeTap(): Promise<void> {
     if (this.wcSyncing || this.subscribedWcIds.length === 0) return;
 
-    await this.requestCalendarPermission();
+    const granted = await this.requestCalendarPermission();
+    if (!granted) {
+      promptAction.showToast({ message: '需要日历权限才能订阅赛程，请在设置中开启', duration: 2500, alignment: Alignment.Center });
+      return;
+    }
 
     this.wcSyncing = true;
     let totalImported = 0;
@@ -231,8 +242,8 @@ struct Index {
         if (!country) continue;
 
         try {
-          const url = getWorldCupIcsUrl(countryId);
-          const icsText = await HttpService.fetchIcs(url);
+          const ctx = getContext() as common.UIAbilityContext;
+          const icsText = await DataService.loadIcs(ctx, `wc/${countryId}.ics`);
           const events = IcsParser.parse(icsText);
           const count = await CalendarWriter.writeEvents(
             { id: country.id, name: country.name, color: '', logo: '' } as Team,
@@ -255,7 +266,7 @@ struct Index {
       promptAction.showToast({ message: `已订阅 ${totalImported} 场比赛`, duration: 2000, alignment: Alignment.Center });
     } catch (e) {
       hilog.error(DOMAIN, 'SportCalendar', 'WC Subscribe error: %{public}s', JSON.stringify(e));
-      promptAction.showToast({ message: '订阅失败，请检查网络后重试', duration: 2000, alignment: Alignment.Center });
+      promptAction.showToast({ message: '订阅失败，请重试', duration: 2000, alignment: Alignment.Center });
     } finally {
       this.wcSyncing = false;
     }
@@ -265,17 +276,74 @@ struct Index {
     this.wcExpanded = !this.wcExpanded;
   }
 
-  async requestCalendarPermission(): Promise<void> {
+  async requestCalendarPermission(): Promise<boolean> {
     try {
       const atManager = abilityAccessCtrl.createAtManager();
       const result = await atManager.requestPermissionsFromUser(getContext(),
         ['ohos.permission.READ_CALENDAR', 'ohos.permission.WRITE_CALENDAR']);
       hilog.info(DOMAIN, 'SportCalendar',
         'Permission result: %{public}s', JSON.stringify(result));
+      for (const status of result.authResults) {
+        if (status !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+          return false;
+        }
+      }
+      return true;
     } catch (e) {
       const error = e as Error;
       hilog.error(DOMAIN, 'SportCalendar', 'Permission request failed: %{public}s', JSON.stringify(error));
+      return false;
     }
+  }
+
+  async openAppSettings(): Promise<void> {
+    const context = getContext() as common.UIAbilityContext;
+    const bundleName = context.abilityInfo.bundleName;
+
+    // 优先：直接跳到本应用信息页
+    try {
+      await context.startAbility({
+        bundleName: 'com.huawei.hmos.settings',
+        abilityName: 'com.huawei.hmos.settings.MainAbility',
+        uri: 'application_info_entry',
+        parameters: { pushParams: bundleName },
+      });
+      return;
+    } catch (e) {
+      hilog.warn(DOMAIN, 'SportCalendar', 'Direct app settings failed, fallback to settings home');
+    }
+
+    // 降级：至少跳到系统设置首页
+    try {
+      await context.startAbility({
+        bundleName: 'com.huawei.hmos.settings',
+        abilityName: 'com.huawei.hmos.settings.MainAbility',
+      });
+      return;
+    } catch (e2) {
+      hilog.error(DOMAIN, 'SportCalendar', 'All settings jump failed: %{public}s', JSON.stringify(e2));
+    }
+
+    // 最终兜底：文字引导
+    promptAction.showToast({ message: '请前往 系统设置 → 应用 → 赛事日历 → 权限 中开启日历权限' });
+  }
+
+  async showPermissionDeniedDialog(action: 'subscribe' | 'delete'): Promise<void> {
+    const msg = action === 'subscribe'
+      ? '需要日历权限才能订阅赛程到系统日历'
+      : '需要日历权限才能删除已写入的赛程';
+    promptAction.showDialog({
+      title: '需要授权',
+      message: `${msg}\n\n请在设置中开启「日历」权限后返回应用重试。`,
+      buttons: [
+        { text: '取消', color: '#999999' },
+        { text: '去设置', color: '#1976d2' }
+      ]
+    }).then((result) => {
+      if (result.index === 1) {
+        this.openAppSettings();
+      }
+    });
   }
 
   formatLastSyncTime(): string {
@@ -402,7 +470,7 @@ struct Index {
             .padding({ left: 12, right: 12 })
 
             // Attribution
-            Text('鸣谢：fclogo.top 提供球队 logo | sports-calendar.com 提供赛程赛果')
+            Text('鸣谢：fclogo.top 提供球队 logo | 赛程数据由 sports-calendar.com 提供')
               .fontSize(8)
               .fontColor('#bbbbbb')
               .textAlign(TextAlign.Center)
@@ -587,7 +655,7 @@ struct Index {
 
             // ===== 固定 Footer（鸣谢 + 按钮栏，顺序与中超一致）=====
             // Attribution
-            Text('鸣谢：sports-calendar.com 提供赛程赛果')
+            Text('鸣谢：赛程数据由 sports-calendar.com 提供')
               .fontSize(8)
               .fontColor('#bbbbbb')
               .textAlign(TextAlign.Center)
@@ -648,7 +716,7 @@ struct Index {
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .margin({ bottom: 2 })
-              Text('v1.0.0')
+              Text('v1.0.1')
                 .fontSize(12)
                 .fontColor('#999999')
                 .margin({ bottom: 20 })
@@ -685,7 +753,7 @@ struct Index {
                 Text('版本号')
                   .fontSize(14)
                   .fontColor('#333333')
-                Text('v1.0.0  >')
+                Text('v1.0.1  >')
                   .fontSize(12)
                   .fontColor('#cccccc')
               }
@@ -777,7 +845,7 @@ struct Index {
   @Builder
   wcTabBar() {
     Column() {
-      Text('🏆 世界杯')
+      Text('世界杯')
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.currentTab === 1 ? '#ffffff' : '#666666')

@@ -26,9 +26,6 @@
           when: "inuse"
         }
       },
-      {
-        name: "ohos.permission.INTERNET"
-      }
     ],
     "pages": "$profile:main_pages",
     "abilities": [
@@ -38,6 +35,7 @@
         "description": "$string:EntryAbility_desc",
         "icon": "$media:layered_image",
         "label": "$string:EntryAbility_label",
+        "orientation": "auto_rotation",
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,

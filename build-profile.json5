@@ -7,11 +7,11 @@
         "material": {
           "certpath": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B623BF2E862A7BD11C66BD04E779871B9B7A1B383D99B6ED2ABAC7752516E568A332EEA141A3F60",
+          "keyPassword": "0000001BCE1B3B82F17BE2DF5B1BDC958930BC368883C3920BFE2E0EF886077CF36712FDD60728755E8FA3",
           "profile": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "/Users/zhoufu/.ohos/config/default_SportCalendar_toZcFd8DfR9QC9GodgNUdPL1fPsgfYTo0-DPoIRzFeQ=.p12",
-          "storePassword": "0000001B4C74AFA71353B76DA024D3CD4D370D3233D77E270999D15E93233D14D06DEDD6BBCCEF49A560A7"
+          "storePassword": "0000001BC7A6E1A45E0133CA071E7AECDE7FAC755502C8278AE411104FAAC529A106F83AE1C4ED41251641"
         }
       }
     ],
