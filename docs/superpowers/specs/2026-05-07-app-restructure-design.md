@@ -77,12 +77,27 @@ entry/src/main/ets/
 │   ├── IcsParser.ets        # 保留
 │   └── CalendarWriter.ets   # 保留
 ├── constants/
-│   └── Teams.ets            # 保留
+│   ├── Teams.ets            # 保留
+│   └── ApiConfig.ets        # 新增 - OBS 端点 URL 常量
 └── model/
     └── MatchEvent.ets       # 保留
 ```
 
 ## 3. OBS 数据层
+
+### 3.0 前置条件：INTERNET 权限
+
+OBS HTTP 请求需要 `ohos.permission.INTERNET` 权限，须在 `module.json5` 中声明：
+
+```json
+{
+  "name": "ohos.permission.INTERNET",
+  "reason": "$string:internet_reason",
+  "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+}
+```
+
+并在 `string.json` 中添加理由：`"internet_reason": "用于从云端获取最新赛程数据"`。
 
 ### 3.1 数据流
 
@@ -108,13 +123,25 @@ sports-calendar.com API
   "version": 2026050701,
   "updated": "2026-05-07T10:00:00+08:00",
   "files": {
-    "csl/beijing-guoan.ics": { "size": 15234, "md5": "abc123" },
-    "wc/argentina.ics": { "size": 8901, "md5": "def456" }
+    "csl/beijing-guoan.ics": 15234,
+    "wc/argentina.ics": 8901
   }
 }
 ```
 
-### 3.3 DataService 改造
+> 简化为文件大小校验，不使用 md5（避免在 ArkTS 中引入 cryptoFramework 的复杂性）。
+
+### 3.3 数据模型
+
+```typescript
+interface MetaInfo {
+  version: number;
+  updated: string;
+  files: Record<string, number>; // path → file size
+}
+```
+
+### 3.4 DataService 改造
 
 现有 `loadIcs(ctx, path)` 读 rawfile，改造为三级 fallback：
 
@@ -123,9 +150,29 @@ sports-calendar.com API
 3. 网络失败 → 读 rawfile（打包时内置的数据）
 
 新增方法：
-- `fetchMeta(): MetaInfo` — 拉取 meta.json
-- `syncIfNeeded(): number` — 比对版本号，按需同步
+- `fetchMeta(): MetaInfo | null` — 拉取 meta.json，失败返回 null
+- `syncIfNeeded(): number` — 比对版本号，按需同步，返回同步的文件数量
 - `getCachedIcs(ctx, path): string` — 读沙箱缓存
+- `clearCache(): void` — 清除沙箱缓存
+
+### 3.5 同步触发策略
+
+| 触发时机 | 行为 |
+|----------|------|
+| HomePage `aboutToAppear` | 调用 `syncIfNeeded()`，后台静默同步 |
+| MyPage「刷新数据」按钮 | 调用 `syncIfNeeded()`，显示 loading |
+| TeamDetailPage `aboutToAppear` | 不触发同步，只读缓存/rawfile |
+
+> 同步是静默的，不阻塞 UI。数据加载始终从本地缓存/rawfile读取，同步完成后刷新页面。
+
+### 3.6 OBS 端点常量
+
+新增 `constants/ApiConfig.ets`：
+
+```typescript
+export const OBS_BASE_URL = 'https://sportcalendar.obs.cn-north-4.myhuaweicloud.com';
+export const META_PATH = 'meta.json';
+```
 
 ### 3.4 OBS 桶配置
 
@@ -141,7 +188,7 @@ sports-calendar.com API
 
 ### 4.1 策略
 
-利用 HarmonyOS 资源双目录机制：`resources/base/` + `resources/dark/`，系统跟随设备模式自动切换。
+利用 HarmonyOS 资源双目录机制：`resources/base/` + `resources/dark/`，跟随系统模式自动切换。不做手动深色模式开关，避免额外的 ColorMode 覆盖复杂性。SettingsPage 中的深色模式入口改为"系统外观设置"跳转（引导用户到系统设置切换）。
 
 ### 4.2 颜色资源
 
@@ -180,12 +227,20 @@ sports-calendar.com API
 
 ## 5. 各页面功能详述
 
+### 5.0 UX 变更说明
+
+**球队点击行为变更：** 当前应用点击球队即切换订阅状态。重构后改为导航到 TeamDetailPage，在详情页中展示赛程并提供订阅按钮。这是为了增加应用深度和页面数量。
+
+**页面状态管理：** 每个页面通过 `TeamStore`（preferences）独立读写订阅状态。页面间通过 `router.pushUrl` 的 params 传递参数（如 `teamId`、`matchUid`），返回时在 `aboutToAppear` 中重新读取状态刷新 UI。
+
+**页面堆栈：** 底部 Tab 切换时不使用 `router`（由 Tabs 组件管理），子页面跳转使用 `router.pushUrl`。Tab 切换时不需要 `router.clear()`，因为 Tabs 内容和 router 页面栈是独立的。
+
 ### 5.1 HomePage (Index.ets)
 
 - 顶部：应用标题 + 最后刷新时间
 - 近期比赛卡片区域（UpcomingCard 复用）
-- CSL 热门球队快捷入口（4-6 个）
-- 世界杯热门球队快捷入口（4-6 个）
+- CSL 热门球队快捷入口（4-6 个，点击 → TeamDetailPage）
+- 世界杯热门球队快捷入口（4-6 个，点击 → TeamDetailPage）
 - 底部：数据来源鸣谢
 
 ### 5.2 TeamListPage (TeamList.ets)
@@ -204,16 +259,16 @@ sports-calendar.com API
 
 ### 5.4 MyPage (My.ets)
 
-- 已订阅球队列表（CSL 分组 + 世界杯分组）
-- 一键同步按钮
-- 一键取消全部订阅
-- 上次同步时间
+- 已订阅球队列表（CSL 分组 + 世界杯分组），点击 → TeamDetailPage
+- 「刷新赛程数据」按钮：触发 OBS syncIfNeeded + 重新写入日历
+- 「取消全部订阅」按钮：删除所有日历 + 清空订阅列表
+- 上次同步时间（OBS 数据同步时间）
 - 设置入口 → router.pushUrl('pages/Settings')
 
 ### 5.5 SettingsPage (Settings.ets)
 
-- 深色模式开关（跟随系统 / 手动切换）
-- 清除缓存
+- 「系统外观设置」跳转（引导用户到系统设置切换深色模式）
+- 清除缓存（清除沙箱中 OBS 拉取的数据）
 - 隐私协议 → router.pushUrl('pages/PrivacyPolicy')
 - 更新日志 → router.pushUrl('pages/Changelog')
 - 版本号
@@ -223,6 +278,16 @@ sports-calendar.com API
 - 比赛信息：对阵、时间、轮次
 - 状态：未开始 / 进行中 / 已结束（含比分）
 - 添加到日历按钮（单场）
+- 参数通过 `router.getParams()` 获取 `matchUid`，再从缓存的 ICS 数据中解析对应 MatchEvent
+
+## 5.7 错误状态处理
+
+| 场景 | 表现 |
+|------|------|
+| OBS 网络请求失败 | 静默降级到 rawfile，不弹错误 |
+| rawfile 和缓存都无数据 | 显示「暂无赛程数据」空状态 |
+| 日历权限被拒绝 | 弹窗引导去系统设置 |
+| 同步失败（MyPage 手动刷新） | Toast 提示「同步失败，请检查网络」|
 
 ## 6. 已完成项
 
@@ -240,3 +305,4 @@ sports-calendar.com API
 - 创建华为云 OBS 桶并配置公共读策略
 - 编写数据同步脚本（从 sports-calendar.com 拉取 → 上传 OBS）
 - 应用上架时备案信息选择"APP服务器在中国大陆"并完成备案
+- **更新隐私协议内容**：新增披露「应用会从华为云 OBS 获取赛程数据」，说明数据传输范围（仅 ICS 赛程文件，不传输个人信息）
