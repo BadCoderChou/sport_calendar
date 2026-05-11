@@ -1,5 +1,1 @@
-BEGIN:VCALENDAR
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-VERSION:2.0
-END:VCALENDAR
+{"error":{"code":"not_found","message":"season feed not found"}}

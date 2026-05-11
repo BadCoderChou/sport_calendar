@@ -1,6 +1,11 @@
 {
   "src": [
     "pages/Index",
+    "pages/TeamList",
+    "pages/TeamDetail",
+    "pages/My",
+    "pages/Settings",
+    "pages/MatchDetail",
     "pages/PrivacyPolicy",
     "pages/Changelog"
   ]

@@ -9,7 +9,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,ecuador
 DESCRIPTION:轮次: Round 1\n球队: Ivory Coast vs Ecuador\n状态: 已安排\n场地: Lincoln Financial Field\, Philadelphia\, PA\, United States
 DTEND:20260615T010000Z
-DTSTAMP:20260430T063417Z
+DTSTAMP:20260511T021955Z
 DTSTART:20260614T230000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:Lincoln Financial Field
@@ -29,7 +29,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,ecuador
 DESCRIPTION:轮次: Round 2\n球队: Ecuador vs Curaçao\n状态: 已安排\n场地: GEHA Field at Arrowhead Stadium\, Kansas City\, MO\, United States
 DTEND:20260621T020000Z
-DTSTAMP:20260430T063417Z
+DTSTAMP:20260511T021955Z
 DTSTART:20260621T000000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:GEHA Field at Arrowhead Stadium
@@ -49,7 +49,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,ecuador
 DESCRIPTION:轮次: Round 3\n球队: Ecuador vs Germany\n状态: 已安排\n场地: MetLife Stadium\, East Rutherford\, NJ\, United States
 DTEND:20260625T220000Z
-DTSTAMP:20260430T063417Z
+DTSTAMP:20260511T021955Z
 DTSTART:20260625T200000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:MetLife Stadium

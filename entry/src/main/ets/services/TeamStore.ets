@@ -113,4 +113,56 @@ export class TeamStore {
     await pref.put('wc_lastSyncTime', time);
     await pref.flush();
   }
+
+  // --- Onboarding state ---
+  static async getOnboardingSeen(): Promise<boolean> {
+    const pref = await TeamStore.getPref();
+    const val = await pref.get('hasSeenOnboarding', 'false');
+    return val === 'true';
+  }
+
+  static async setOnboardingSeen(seen: boolean): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('hasSeenOnboarding', seen ? 'true' : 'false');
+    await pref.flush();
+  }
+
+  // --- OBS sync state ---
+
+  static async getSyncVersion(): Promise<number> {
+    const pref = await TeamStore.getPref();
+    const val = await pref.get('syncVersion', 0);
+    return val as number;
+  }
+
+  static async setSyncVersion(version: number): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('syncVersion', version);
+    await pref.flush();
+  }
+
+  static async getLastDataSyncTime(): Promise<number> {
+    const pref = await TeamStore.getPref();
+    const val = await pref.get('lastDataSyncTime', 0);
+    return val as number;
+  }
+
+  static async setLastDataSyncTime(time: number): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('lastDataSyncTime', time);
+    await pref.flush();
+  }
+
+  // --- Privacy consent state ---
+  static async getPrivacyAgreed(): Promise<boolean> {
+    const pref = await TeamStore.getPref();
+    const val = await pref.get('privacyAgreed', 'false');
+    return val === 'true';
+  }
+
+  static async setPrivacyAgreed(agreed: boolean): Promise<void> {
+    const pref = await TeamStore.getPref();
+    await pref.put('privacyAgreed', agreed ? 'true' : 'false');
+    await pref.flush();
+  }
 }

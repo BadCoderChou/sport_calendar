@@ -9,7 +9,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,czech-republic
 DESCRIPTION:轮次: Round 1\n球队: South Korea vs Czech Republic\n状态: 已安排\n场地: Estadio Akron\, Zapopan\, JA\, Mexico
 DTEND:20260612T040000Z
-DTSTAMP:20260430T063415Z
+DTSTAMP:20260511T021952Z
 DTSTART:20260612T020000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:Estadio Akron
@@ -29,7 +29,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,czech-republic
 DESCRIPTION:轮次: Round 2\n球队: Czech Republic vs South Africa\n状态: 已安排\n场地: Mercedes-Benz Stadium\, Atlanta\, GA\, United States
 DTEND:20260618T180000Z
-DTSTAMP:20260430T063415Z
+DTSTAMP:20260511T021952Z
 DTSTART:20260618T160000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:Mercedes-Benz Stadium
@@ -49,7 +49,7 @@ BEGIN:VEVENT
 CATEGORIES:soccer,fifa-world-cup,czech-republic
 DESCRIPTION:轮次: Round 3\n球队: Czech Republic vs Mexico\n状态: 已安排\n场地: Estadio Azteca\, Mexico City\, MX\, Mexico
 DTEND:20260625T030000Z
-DTSTAMP:20260430T063415Z
+DTSTAMP:20260511T021952Z
 DTSTART:20260625T010000Z
 LAST-MODIFIED:20260424T001140Z
 LOCATION:Estadio Azteca

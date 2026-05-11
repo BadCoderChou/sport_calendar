@@ -88,7 +88,7 @@ export class IcsParser {
     for (const line of lines) {
       const colonIndex = line.indexOf(':');
       if (colonIndex > 0) {
-        const key = line.substring(0, colonIndex).toUpperCase();
+        const key = line.substring(0, colonIndex).split(';')[0].toUpperCase();
         const value = line.substring(colonIndex + 1);
         props[key] = value;
       }

@@ -1,881 +1,636 @@
-import { Team, CSL_TEAMS, WorldCupTeam, WORLD_CUP_TEAMS, WC_CALENDAR_NAME_PREFIX } from '../constants/Teams';
+import { CSL_TEAMS, WORLD_CUP_TEAMS, Team, WorldCupTeam } from '../constants/Teams';
 import { IcsParser } from '../services/IcsParser';
 import { DataService } from '../services/DataService';
-import { CalendarWriter } from '../services/CalendarWriter';
 import { TeamStore } from '../services/TeamStore';
-import { promptAction, router } from '@kit.ArkUI';
-import { hilog } from '@kit.PerformanceAnalysisKit';
-import { abilityAccessCtrl, common } from '@kit.AbilityKit';
-
-const DOMAIN = 0x0000;
+import { router } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
+import { MatchEvent } from '../model/MatchEvent';
+import { UpcomingCard } from '../components/UpcomingCard';
+import { OnboardingOverlay } from '../components/OnboardingOverlay';
+import { PrivacyConsentDialog } from '../components/PrivacyConsentDialog';
 
 @Entry
 @Component
 struct Index {
-  @State subscribedIds: string[] = [];
-  @State syncing: boolean = false;
-  @State lastSyncTime: number = 0;
   @State currentTab: number = 0;
+  @State privacyAgreed: boolean = false;
+  @State showOnboarding: boolean = false;
+
+  // Tab 1 (首页) 状态
+  @State cslUpcoming: MatchEvent[] = [];
+  @State wcUpcoming: MatchEvent[] = [];
+  @State lastRefreshTime: string = '';
+
+  // Tab 2 (球队) 状态
+  @State subscribedCslIds: string[] = [];
   @State subscribedWcIds: string[] = [];
-  @State wcExpanded: boolean = false;
-  @State wcSyncing: boolean = false;
-  @State wcLastSyncTime: number = 0;
+  @State currentLeague: number = 0;
+
+  // Tab 3 (我的) 状态
+  @State mySyncTime: string = '';
+  @State isSyncing: boolean = false;
 
   aboutToAppear(): void {
-    this.loadSubscriptionState();
+    this.checkPrivacyConsent();
   }
 
-  async loadSubscriptionState(): Promise<void> {
-    try {
-      let ids = await TeamStore.getSubscribedIds();
-      // Migrate legacy team IDs to current IDs
-      const LEGACY_ID_MAP: Record<string, string> = {
-        'shanghai-haipo': 'shanghai-port',
-        'zhejiang-club': 'zhejiang-professional',
-        'tianjin-jinmenhu': 'tianjin-jinmen-tiger',
-        'henan-club': 'henan-fc',
-        'shenzhen-xinpengcheng': 'shenzhen-peng-city',
-      };
-      let migrated = false;
-      for (let i = 0; i < ids.length; i++) {
-        const newId = LEGACY_ID_MAP[ids[i]];
-        if (newId) {
-          ids[i] = newId;
-          migrated = true;
-        }
-      }
-      if (migrated) {
-        await TeamStore.setSubscribedIds(ids);
-      }
-      this.subscribedIds = ids;
-      this.lastSyncTime = await TeamStore.getLastSyncTime();
+  async checkPrivacyConsent(): Promise<void> {
+    const agreed = await TeamStore.getPrivacyAgreed();
+    if (agreed) {
+      this.privacyAgreed = true;
+      this.initApp();
+    }
+  }
 
-      // Load World Cup subscription state
+  onPrivacyAgree(): void {
+    TeamStore.setPrivacyAgreed(true);
+    this.privacyAgreed = true;
+    this.initApp();
+  }
+
+  async initApp(): Promise<void> {
+    await this.loadState();
+    this.checkOnboarding();
+    this.computeUpcomingEvents();
+    this.silentSync();
+  }
+
+  async loadState(): Promise<void> {
+    this.subscribedCslIds = await TeamStore.getSubscribedIds();
+    this.subscribedWcIds = await TeamStore.getWcSubscribedIds();
+    const syncTime = await TeamStore.getLastDataSyncTime();
+    this.mySyncTime = syncTime > 0 ? this.formatDateTime(syncTime) : '从未同步';
+  }
+
+  async checkOnboarding(): Promise<void> {
+    const seen = await TeamStore.getOnboardingSeen();
+    if (!seen) {
+      this.showOnboarding = true;
+    }
+  }
+
+  async silentSync(): Promise<void> {
+    try {
+      const ctx = getContext() as common.UIAbilityContext;
+      await DataService.syncIfNeeded(ctx);
+      const syncTime = await TeamStore.getLastDataSyncTime();
+      this.lastRefreshTime = syncTime > 0 ? this.formatDateTime(syncTime) : '';
+    } catch (_) {
+    }
+  }
+
+  async computeUpcomingEvents(): Promise<void> {
+    const now = Date.now();
+    const ctx = getContext() as common.UIAbilityContext;
+
+    const cslUpcoming: MatchEvent[] = [];
+    for (const id of this.subscribedCslIds) {
       try {
-        let wcIds = await TeamStore.getWcSubscribedIds();
-        this.subscribedWcIds = wcIds;
-        this.wcLastSyncTime = await TeamStore.getWcLastSyncTime();
-      } catch (e) {
-        const error = e as Error;
-        hilog.error(DOMAIN, 'SportCalendar', 'Failed to load WC state: %{public}s', JSON.stringify(error));
-      }
-    } catch (e) {
-      const error = e as Error;
-      hilog.error(DOMAIN, 'SportCalendar', 'Failed to load state: %{public}s', JSON.stringify(error));
-    }
-  }
-
-  async onTeamTap(teamId: string): Promise<void> {
-    if (this.syncing) return;
-
-    const team = CSL_TEAMS.find(t => t.id === teamId);
-    if (!team) return;
-
-    const wasSubscribed = this.subscribedIds.includes(teamId);
-
-    // If untapping a subscribed team, delete its calendar first
-    if (wasSubscribed) {
-      try {
-        await this.requestCalendarPermission();
-        await CalendarWriter.deleteCalendar(team);
-      } catch (e) {
-        hilog.warn(DOMAIN, 'SportCalendar', 'Delete calendar on untap failed: %{public}s', JSON.stringify(e));
+        const icsText = await DataService.loadIcs(ctx, `csl/${id}.ics`);
+        const events = IcsParser.parse(icsText);
+        const upcoming = events.filter((e: MatchEvent) => e.startTime >= now);
+        cslUpcoming.push(...upcoming);
+      } catch (_) {
       }
     }
+    this.cslUpcoming = cslUpcoming.sort((a: MatchEvent, b: MatchEvent) => a.startTime - b.startTime).slice(0, 3);
 
-    await TeamStore.toggleSubscription(teamId);
-    await this.loadSubscriptionState();
-
-    const isNowSubscribed = this.subscribedIds.includes(teamId);
-    promptAction.showToast({
-      message: isNowSubscribed ? `已选择${team.name}` : `已取消选择${team.name}`,
-      duration: 1500,
-      alignment: Alignment.Center,
-    });
-  }
-
-  async onDeleteAllTap(): Promise<void> {
-    if (this.syncing || this.subscribedIds.length === 0) return;
-
-    hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: subscribedIds=%{public}s', JSON.stringify(this.subscribedIds));
-    const granted = await this.requestCalendarPermission();
-    if (!granted) {
-      this.showPermissionDeniedDialog('delete');
-      return;
-    }
-
-    try {
-      for (const teamId of this.subscribedIds) {
-        const team = CSL_TEAMS.find(t => t.id === teamId);
-        if (team) {
-          hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: deleting calendar for %{public}s', team.name);
-          await CalendarWriter.deleteCalendar(team);
-          hilog.info(DOMAIN, 'SportCalendar', 'onDeleteAllTap: deleted %{public}s OK', team.name);
-        }
-      }
-      await TeamStore.setSubscribedIds([]);
-      await this.loadSubscriptionState();
-      promptAction.showToast({ message: '已删除选中球队的赛程日历', duration: 2000, alignment: Alignment.Center });
-    } catch (e) {
-      const error = e as Error;
-      hilog.error(DOMAIN, 'SportCalendar', 'DeleteAll failed: %{public}s', JSON.stringify(error));
-      promptAction.showToast({ message: '删除失败，请重试', duration: 2000, alignment: Alignment.Center });
-    }
-  }
-
-  async onSubscribeTap(): Promise<void> {
-    if (this.syncing || this.subscribedIds.length === 0) return;
-
-    const granted = await this.requestCalendarPermission();
-    if (!granted) {
-      this.showPermissionDeniedDialog('subscribe');
-      return;
-    }
-
-    this.syncing = true;
-    let totalImported = 0;
-
-    try {
-      for (const teamId of this.subscribedIds) {
-        const team = CSL_TEAMS.find(t => t.id === teamId);
-        if (!team) continue;
-
-        try {
-          const ctx = getContext() as common.UIAbilityContext;
-          const icsText = await DataService.loadIcs(ctx, `csl/${teamId}.ics`);
-          const events = IcsParser.parse(icsText);
-          const count = await CalendarWriter.writeEvents(team, events);
-          await TeamStore.setLastSyncCount(teamId, count);
-          totalImported += count;
-        } catch (e) {
-          hilog.error(DOMAIN, 'SportCalendar', 'Sync failed for %{public}s: %{public}s',
-            teamId, JSON.stringify(e));
-        }
-      }
-
-      const now = Date.now();
-      await TeamStore.setLastSyncTime(now);
-      this.lastSyncTime = now;
-
-      promptAction.showToast({ message: `已订阅 ${totalImported} 场比赛`, duration: 2000, alignment: Alignment.Center });
-    } catch (e) {
-      hilog.error(DOMAIN, 'SportCalendar', 'Subscribe error: %{public}s', JSON.stringify(e));
-      promptAction.showToast({ message: '订阅失败，请重试', duration: 2000, alignment: Alignment.Center });
-    } finally {
-      this.syncing = false;
-    }
-  }
-
-  async onWcTeamTap(countryId: string): Promise<void> {
-    if (this.wcSyncing) return;
-
-    const country = WORLD_CUP_TEAMS.find(t => t.id === countryId);
-    if (!country) return;
-
-    const wasSubscribed = this.subscribedWcIds.includes(countryId);
-
-    if (wasSubscribed) {
-      try {
-        await this.requestCalendarPermission();
-        await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team, WC_CALENDAR_NAME_PREFIX);
-      } catch (e) {
-        hilog.warn(DOMAIN, 'SportCalendar', 'Delete WC calendar on untap failed: %{public}s', JSON.stringify(e));
-      }
-    }
-
-    const added = await TeamStore.toggleWcSubscription(countryId);
-    if (added) {
-      this.subscribedWcIds = this.subscribedWcIds.concat(countryId);
-    } else {
-      this.subscribedWcIds = this.subscribedWcIds.filter(id => id !== countryId);
-    }
-
-    const isNowSubscribed = added;
-    promptAction.showToast({
-      message: isNowSubscribed ? `已选择${country.name}` : `已取消选择${country.name}`,
-      duration: 1500,
-      alignment: Alignment.Center,
-    });
-  }
-
-  async onWcDeleteAllTap(): Promise<void> {
-    if (this.wcSyncing || this.subscribedWcIds.length === 0) return;
-
-    const granted = await this.requestCalendarPermission();
-    if (!granted) {
-      this.showPermissionDeniedDialog('delete');
-      return;
-    }
-
-    try {
-      for (const countryId of this.subscribedWcIds) {
-        const country = WORLD_CUP_TEAMS.find(t => t.id === countryId);
-        if (country) {
-          await CalendarWriter.deleteCalendar({ id: country.id, name: country.name, color: '', logo: '' } as Team, WC_CALENDAR_NAME_PREFIX);
-        }
-      }
-      await TeamStore.setWcSubscribedIds([]);
-      await this.loadSubscriptionState();
-      promptAction.showToast({ message: '已删除选中国家的赛程日历', duration: 2000, alignment: Alignment.Center });
-    } catch (e) {
-      const error = e as Error;
-      hilog.error(DOMAIN, 'SportCalendar', 'WC DeleteAll failed: %{public}s', JSON.stringify(error));
-      promptAction.showToast({ message: '删除失败，请重试', duration: 2000, alignment: Alignment.Center });
-    }
-  }
-
-  async onWcSubscribeTap(): Promise<void> {
-    if (this.wcSyncing || this.subscribedWcIds.length === 0) return;
-
-    const granted = await this.requestCalendarPermission();
-    if (!granted) {
-      promptAction.showToast({ message: '需要日历权限才能订阅赛程，请在设置中开启', duration: 2500, alignment: Alignment.Center });
-      return;
-    }
-
-    this.wcSyncing = true;
-    let totalImported = 0;
-
-    try {
-      for (const countryId of this.subscribedWcIds) {
-        const country = WORLD_CUP_TEAMS.find(t => t.id === countryId);
-        if (!country) continue;
-
-        try {
-          const ctx = getContext() as common.UIAbilityContext;
-          const icsText = await DataService.loadIcs(ctx, `wc/${countryId}.ics`);
-          const events = IcsParser.parse(icsText);
-          const count = await CalendarWriter.writeEvents(
-            { id: country.id, name: country.name, color: '', logo: '' } as Team,
-            events,
-            '世界杯赛程',
-            WC_CALENDAR_NAME_PREFIX
-          );
-          await TeamStore.setLastSyncCount(countryId, count);
-          totalImported += count;
-        } catch (e) {
-          hilog.error(DOMAIN, 'SportCalendar', 'WC Sync failed for %{public}s: %{public}s',
-            countryId, JSON.stringify(e));
-        }
-      }
-
-      const now = Date.now();
-      await TeamStore.setWcLastSyncTime(now);
-      this.wcLastSyncTime = now;
-
-      promptAction.showToast({ message: `已订阅 ${totalImported} 场比赛`, duration: 2000, alignment: Alignment.Center });
-    } catch (e) {
-      hilog.error(DOMAIN, 'SportCalendar', 'WC Subscribe error: %{public}s', JSON.stringify(e));
-      promptAction.showToast({ message: '订阅失败，请重试', duration: 2000, alignment: Alignment.Center });
-    } finally {
-      this.wcSyncing = false;
-    }
-  }
-
-  toggleWcExpand(): void {
-    this.wcExpanded = !this.wcExpanded;
-  }
-
-  async requestCalendarPermission(): Promise<boolean> {
-    try {
-      const atManager = abilityAccessCtrl.createAtManager();
-      const result = await atManager.requestPermissionsFromUser(getContext(),
-        ['ohos.permission.READ_CALENDAR', 'ohos.permission.WRITE_CALENDAR']);
-      hilog.info(DOMAIN, 'SportCalendar',
-        'Permission result: %{public}s', JSON.stringify(result));
-      for (const status of result.authResults) {
-        if (status !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-          return false;
-        }
-      }
-      return true;
-    } catch (e) {
-      const error = e as Error;
-      hilog.error(DOMAIN, 'SportCalendar', 'Permission request failed: %{public}s', JSON.stringify(error));
-      return false;
-    }
-  }
-
-  async openAppSettings(): Promise<void> {
-    const context = getContext() as common.UIAbilityContext;
-    const bundleName = context.abilityInfo.bundleName;
-
-    // 优先：直接跳到本应用信息页
-    try {
-      await context.startAbility({
-        bundleName: 'com.huawei.hmos.settings',
-        abilityName: 'com.huawei.hmos.settings.MainAbility',
-        uri: 'application_info_entry',
-        parameters: { pushParams: bundleName },
-      });
-      return;
-    } catch (e) {
-      hilog.warn(DOMAIN, 'SportCalendar', 'Direct app settings failed, fallback to settings home');
-    }
-
-    // 降级：至少跳到系统设置首页
-    try {
-      await context.startAbility({
-        bundleName: 'com.huawei.hmos.settings',
-        abilityName: 'com.huawei.hmos.settings.MainAbility',
-      });
-      return;
-    } catch (e2) {
-      hilog.error(DOMAIN, 'SportCalendar', 'All settings jump failed: %{public}s', JSON.stringify(e2));
-    }
-
-    // 最终兜底：文字引导
-    promptAction.showToast({ message: '请前往 系统设置 → 应用 → 赛事日历 → 权限 中开启日历权限' });
-  }
-
-  async showPermissionDeniedDialog(action: 'subscribe' | 'delete'): Promise<void> {
-    const msg = action === 'subscribe'
-      ? '需要日历权限才能订阅赛程到系统日历'
-      : '需要日历权限才能删除已写入的赛程';
-    promptAction.showDialog({
-      title: '需要授权',
-      message: `${msg}\n\n请在设置中开启「日历」权限后返回应用重试。`,
-      buttons: [
-        { text: '取消', color: '#999999' },
-        { text: '去设置', color: '#1976d2' }
-      ]
-    }).then((result) => {
-      if (result.index === 1) {
-        this.openAppSettings();
-      }
-    });
-  }
-
-  formatLastSyncTime(): string {
-    if (!this.lastSyncTime) return '尚未同步';
-    const date = new Date(this.lastSyncTime);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hour = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    return `${month}-${day} ${hour}:${min}`;
-  }
-
-  getSubscribedNames(): string {
-    let names: string[] = [];
-    for (const id of this.subscribedIds) {
-      const found = CSL_TEAMS.find(t => t.id === id);
-      if (found && found.name) {
-        names.push(found.name);
-      }
-    }
-    return names.join('、');
-  }
-
-  isTeamSubscribed(teamId: string): boolean {
-    return this.subscribedIds.includes(teamId);
-  }
-
-  isWcCountrySubscribed(countryId: string): boolean {
-    return this.subscribedWcIds.includes(countryId);
-  }
-
-  getWcSubscribedNames(): string {
-    let names: string[] = [];
+    const wcUpcoming: MatchEvent[] = [];
     for (const id of this.subscribedWcIds) {
-      const found = WORLD_CUP_TEAMS.find(t => t.id === id);
-      if (found && found.name) {
-        names.push(found.name);
+      try {
+        const icsText = await DataService.loadIcs(ctx, `wc/${id}.ics`);
+        const events = IcsParser.parse(icsText);
+        const upcoming = events.filter((e: MatchEvent) => e.startTime >= now);
+        wcUpcoming.push(...upcoming);
+      } catch (_) {
       }
     }
-    return names.join('、');
+    this.wcUpcoming = wcUpcoming.sort((a: MatchEvent, b: MatchEvent) => a.startTime - b.startTime).slice(0, 3);
   }
 
-  formatWcLastSyncTime(): string {
-    if (!this.wcLastSyncTime) return '尚未同步';
-    const date = new Date(this.wcLastSyncTime);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hour = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    return `${month}-${day} ${hour}:${min}`;
+  async onTabChange(): Promise<void> {
+    if (this.currentTab === 0) {
+      await this.loadState();
+      await this.computeUpcomingEvents();
+    } else if (this.currentTab === 1) {
+      this.subscribedCslIds = await TeamStore.getSubscribedIds();
+      this.subscribedWcIds = await TeamStore.getWcSubscribedIds();
+    } else if (this.currentTab === 2) {
+      await this.loadState();
+    }
+  }
+
+  async doRefreshData(): Promise<void> {
+    this.isSyncing = true;
+    try {
+      const ctx = getContext() as common.UIAbilityContext;
+      await DataService.syncIfNeeded(ctx);
+      await TeamStore.setLastDataSyncTime(Date.now());
+      await this.loadState();
+    } catch (_) {
+    } finally {
+      this.isSyncing = false;
+    }
   }
 
   build() {
-    Stack() {
-      Tabs({ index: this.currentTab, barPosition: BarPosition.End }) {
-        // --- Tab 1: 中超联赛 ---
-        TabContent() {
-          Scroll() {
-            Column() {
-            // Header (不变)
-            Column() {
-              Text('中超联赛赛程日历')
-                .fontSize(17)
-                .fontWeight(FontWeight.Bold)
-                .margin({ top: 8, bottom: 1 })
-              Text('选择球队 → 订阅日程 / 删除日程')
-                .fontSize(10)
-                .fontColor('#888888')
-                .margin({ bottom: 6 })
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Center)
+    if (!this.privacyAgreed) {
+      PrivacyConsentDialog({ onAgree: () => this.onPrivacyAgree() })
+    } else {
+      Stack() {
+        Tabs({ index: this.currentTab }) {
+          TabContent() {
+            this.HomeTab()
+          }.tabBar(this.TabBarItem('首页', 0))
 
-            // Team Grid (不变)
-            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-              ForEach(CSL_TEAMS, (team: Team) => {
-                Stack() {
-                  Column() {
-                    Image(team.logo)
-                      .width(32)
-                      .height(32)
-                      .objectFit(ImageFit.Contain)
-                      .margin({ bottom: 2 })
+          TabContent() {
+            this.TeamsTab()
+          }.tabBar(this.TabBarItem('球队', 1))
 
-                    Text(team.name)
-                      .fontSize(9)
-                      .fontColor(this.isTeamSubscribed(team.id) ? '#2e7d32' : '#333333')
-                      .fontWeight(this.isTeamSubscribed(team.id) ? FontWeight.Medium : FontWeight.Regular)
-                      .maxLines(1)
-                      .textAlign(TextAlign.Center)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  }
-                  .width('100%')
-                  .height('100%')
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(HorizontalAlign.Center)
+          TabContent() {
+            this.MyTab()
+          }.tabBar(this.TabBarItem('我的', 2))
+        }
+        .width('100%')
+        .height('100%')
+        .barPosition(BarPosition.End)
+        .onChange((index: number) => {
+          this.currentTab = index;
+          this.onTabChange();
+        })
 
-                  if (this.isTeamSubscribed(team.id)) {
-                    Text('\u2713')
-                      .fontSize(11)
-                      .fontColor('#ffffff')
-                      .fontWeight(FontWeight.Bold)
-                      .width(18)
-                      .height(18)
-                      .borderRadius(9)
-                      .backgroundColor('#4caf50')
-                      .textAlign(TextAlign.Center)
-                      .position({ x: '100%', y: 0 })
-                      .translate({ x: '-50%', y: '-25%' })
-                      .zIndex(10)
-                  }
-                }
-                .width('45%')
-                .height(62)
-                .margin(4)
-                .padding(4)
-                .backgroundColor(this.isTeamSubscribed(team.id) ? '#e8f5e9' : '#ffffff')
-                .borderRadius(8)
-                .border(this.isTeamSubscribed(team.id) ? { width: 2, color: '#4caf50' } : { width: 0 })
-                .shadow(this.isTeamSubscribed(team.id) ? { radius: 3, color: '#4caf5020' } : { radius: 3, color: '#0000000D' })
-                .onClick(() => this.onTeamTap(team.id))
-              }, (team: Team) => team.id)
-            }
-            .padding({ left: 12, right: 12 })
+        if (this.showOnboarding) {
+          OnboardingOverlay({
+            show: this.showOnboarding,
+            onSkip: async () => {
+              this.showOnboarding = false;
+              await TeamStore.setOnboardingSeen(true);
+            },
+            onFinish: async () => {
+              this.showOnboarding = false;
+              await TeamStore.setOnboardingSeen(true);
+            },
+          })
+        }
+      }
+      .width('100%')
+      .height('100%')
+    }
+  }
 
-            // Attribution
-            Text('鸣谢：fclogo.top 提供球队 logo | 赛程数据由 sports-calendar.com 提供')
-              .fontSize(8)
-              .fontColor('#bbbbbb')
-              .textAlign(TextAlign.Center)
-              .margin({ top: 2, bottom: 0 })
-            Text('球队按拼音排序')
-              .fontSize(7)
-              .fontColor('#cccccc')
-              .textAlign(TextAlign.Center)
-              .margin({ bottom: 4 })
-
-            // Sync Bar
-            Row() {
-              if (!this.syncing) {
-                Button(this.subscribedIds.length === 0 ? '请先选择球队' : '订阅日程')
-                  .type(ButtonType.Normal)
-                  .backgroundColor(this.subscribedIds.length === 0 ? '#cccccc' : '#1976d2')
-                  .fontColor(Color.White)
-                  .borderRadius(14)
-                  .height(28)
-                  .fontSize(11)
-                  .enabled(this.subscribedIds.length > 0)
-                  .onClick(() => this.onSubscribeTap())
-              }
-
-              if (this.subscribedIds.length > 0 && !this.syncing) {
-                Button('删除日程')
-                  .type(ButtonType.Normal)
-                  .backgroundColor('#ff5252')
-                  .fontColor(Color.White)
-                  .borderRadius(14)
-                  .height(28)
-                  .fontSize(11)
-                  .margin({ left: 8 })
-                  .onClick(() => this.onDeleteAllTap())
-              }
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.Center)
-            .padding({ top: 4, bottom: 8 })
-          }
-          .width('100%').backgroundColor('#f5f5f5')
-            }
-          .scrollBar(BarState.Off)
-          }
-        .tabBar(this.cslTabBar)
-
-        // --- Tab 2: 世界杯 ---
-        TabContent() {
-          Column() {
-            // ===== 固定 Header（与中超高度一致）=====
-            Column() {
-              Text('2026 世界杯赛程日历')
-                .fontSize(17)
-                .fontWeight(FontWeight.Bold)
-                .margin({ top: 8, bottom: 1 })
-              Text('选择国家 → 订阅日程 / 删除日程')
-                .fontSize(10)
-                .fontColor('#888888')
-                .margin({ bottom: 6 })
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Center)
-
-            // ===== 可滚动中间区域（宫格 + 展开/收起按钮）=====
-            Scroll() {
-              Column() {
-                // Hot Countries Grid (3 columns)
-                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                  ForEach(WORLD_CUP_TEAMS.filter(t => t.isHot), (country: WorldCupTeam) => {
-                    Stack() {
-                      Column() {
-                        Text(country.emoji)
-                          .fontSize(20)
-                        Text(country.name)
-                          .fontSize(7.5)
-                          .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
-                          .fontWeight(this.isWcCountrySubscribed(country.id) ? FontWeight.Medium : FontWeight.Regular)
-                          .maxLines(1)
-                          .textAlign(TextAlign.Center)
-                          .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      }
-                      .width('100%')
-                      .height('100%')
-                      .justifyContent(FlexAlign.Center)
-                      .alignItems(HorizontalAlign.Center)
-
-                      if (this.isWcCountrySubscribed(country.id)) {
-                        Text('\u2713')
-                          .fontSize(10)
-                          .fontColor('#ffffff')
-                          .fontWeight(FontWeight.Bold)
-                          .width(16)
-                          .height(16)
-                          .borderRadius(8)
-                          .backgroundColor('#4caf50')
-                          .textAlign(TextAlign.Center)
-                          .position({ x: '100%', y: 0 })
-                          .translate({ x: '-50%', y: '-25%' })
-                          .zIndex(10)
-                      }
-                    }
-                    .width('32%')
-                    .height(52)
-                    .margin(2)
-                    .padding(3)
-                    .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
-                    .borderRadius(6)
-                    .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
-                    .shadow(this.isWcCountrySubscribed(country.id) ? { radius: 2, color: '#4caf5020' } : { radius: 2, color: '#0000000D' })
-                    .onClick(() => this.onWcTeamTap(country.id))
-                  }, (country: WorldCupTeam) => country.id)
-                }
-                .padding({ left: 8, right: 8 })
-
-                // Expand/Collapse button
-                Row() {
-                  Text(this.wcExpanded ? '▲ 收起' : '▼ 展开全部 48 个国家')
-                    .fontSize(10)
-                    .fontColor('#1976d2')
-                    .fontWeight(FontWeight.Medium)
-                    .padding({ left: 20, right: 20, top: 8, bottom: 8 })
-                    .backgroundColor('#e3f2fd')
-                    .borderRadius(16)
-                }
-                .width('100%')
-                .justifyContent(FlexAlign.Center)
-                .margin({ top: 6, bottom: 4 })
-                .onClick(() => this.toggleWcExpand())
-
-                // All Countries Grid (conditional - only when expanded)
-                if (this.wcExpanded) {
-                  Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                    ForEach(WORLD_CUP_TEAMS.filter(t => !t.isHot), (country: WorldCupTeam) => {
-                      Stack() {
-                        Column() {
-                          Text(country.emoji)
-                            .fontSize(18)
-                          Text(country.name)
-                            .fontSize(7)
-                            .fontColor(this.isWcCountrySubscribed(country.id) ? '#2e7d32' : '#333333')
-                            .maxLines(1)
-                            .textAlign(TextAlign.Center)
-                            .textOverflow({ overflow: TextOverflow.Ellipsis })
-                        }
-                        .width('100%')
-                        .height('100%')
-                        .justifyContent(FlexAlign.Center)
-                        .alignItems(HorizontalAlign.Center)
-
-                        if (this.isWcCountrySubscribed(country.id)) {
-                          Text('\u2713')
-                            .fontSize(9)
-                            .fontColor('#ffffff')
-                            .fontWeight(FontWeight.Bold)
-                            .width(14)
-                            .height(14)
-                            .borderRadius(7)
-                            .backgroundColor('#4caf50')
-                            .textAlign(TextAlign.Center)
-                            .position({ x: '100%', y: 0 })
-                            .translate({ x: '-50%', y: '-25%' })
-                            .zIndex(10)
-                        }
-                      }
-                      .width('32%')
-                      .height(48)
-                      .margin(2)
-                      .padding(2)
-                      .backgroundColor(this.isWcCountrySubscribed(country.id) ? '#e8f5e9' : '#ffffff')
-                      .borderRadius(5)
-                      .border(this.isWcCountrySubscribed(country.id) ? { width: 1.5, color: '#4caf50' } : { width: 0 })
-                      .onClick(() => this.onWcTeamTap(country.id))
-                    }, (country: WorldCupTeam) => country.id)
-                  }
-                  .padding({ left: 8, right: 8 })
-                }
-              }
-              .width('100%')
-            }
-            .scrollBar(BarState.Off)
+  // ========== Tab 1: 首页 ==========
+  @Builder
+  HomeTab() {
+    Scroll() {
+      Column() {
+        // 标题
+        Row() {
+          Text('赛事日历')
+            .fontSize(22)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
             .layoutWeight(1)
-
-            // ===== 固定 Footer（鸣谢 + 按钮栏，顺序与中超一致）=====
-            // Attribution
-            Text('鸣谢：赛程数据由 sports-calendar.com 提供')
-              .fontSize(8)
-              .fontColor('#bbbbbb')
-              .textAlign(TextAlign.Center)
-              .margin({ top: 2, bottom: 0 })
-            Text('热门球队置顶显示')
-              .fontSize(7)
-              .fontColor('#cccccc')
-              .textAlign(TextAlign.Center)
-              .margin({ bottom: 4 })
-
-            // WC Sync Bar
-            Row() {
-              if (!this.wcSyncing) {
-                Button(this.subscribedWcIds.length === 0 ? '请先选择国家' : '订阅日程')
-                  .type(ButtonType.Normal)
-                  .backgroundColor(this.subscribedWcIds.length === 0 ? '#cccccc' : '#1976d2')
-                  .fontColor(Color.White)
-                  .borderRadius(14)
-                  .height(28)
-                  .fontSize(11)
-                  .enabled(this.subscribedWcIds.length > 0)
-                  .onClick(() => this.onWcSubscribeTap())
-              }
-
-              if (this.subscribedWcIds.length > 0 && !this.wcSyncing) {
-                Button('删除日程')
-                  .type(ButtonType.Normal)
-                  .backgroundColor('#ff5252')
-                  .fontColor(Color.White)
-                  .borderRadius(14)
-                  .height(28)
-                  .fontSize(11)
-                  .margin({ left: 8 })
-                  .onClick(() => this.onWcDeleteAllTap())
-              }
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.Center)
-            .padding({ top: 4, bottom: 8 })
-          }
-          
-          .width('100%')
-          .backgroundColor('#f5f5f5')
-        }
-        .tabBar(this.wcTabBar)
-
-        // --- Tab 3: 我的 ---
-        TabContent() {
-          Column() {
-            // 应用信息
-            Column() {
-              Image($r('app.media.foreground'))
-                .width(80)
-                .height(80)
-                .borderRadius(16)
-                .margin({ top: 24, bottom: 12 })
-              Text('赛事日历')
-                .fontSize(18)
-                .fontWeight(FontWeight.Bold)
-                .margin({ bottom: 2 })
-              Text('v1.0.1')
-                .fontSize(12)
-                .fontColor('#999999')
-                .margin({ bottom: 20 })
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Center)
-
-            // 列表卡片
-            Column() {
-              // 隐私协议
-              Row() {
-                Text('隐私协议')
-                  .fontSize(14)
-                  .fontColor('#333333')
-                Text('>')
-                  .fontSize(14)
-                  .fontColor('#cccccc')
-              }
-              .width('100%')
-              .height(48)
-              .padding({ left: 16, right: 16 })
-              .justifyContent(FlexAlign.SpaceBetween)
-              .onClick(() => {
-                router.pushUrl({ url: 'pages/PrivacyPolicy' })
-              })
-
-              Divider()
-                .width('calc(100% - 32px)')
-                .margin({ left: 16 })
-                .color('#f5f5f5')
-
-              // 版本号
-              Row() {
-                Text('版本号')
-                  .fontSize(14)
-                  .fontColor('#333333')
-                Text('v1.0.1  >')
-                  .fontSize(12)
-                  .fontColor('#cccccc')
-              }
-              .width('100%')
-              .height(48)
-              .padding({ left: 16, right: 16 })
-              .justifyContent(FlexAlign.SpaceBetween)
-              .onClick(() => {
-                router.pushUrl({ url: 'pages/Changelog' })
-              })
-            }
-            .width('calc(100% - 32px)')
-            .backgroundColor('#ffffff')
-            .borderRadius(12)
-            .margin({ top: 0 })
-
-            // 底部版权
-            Text('© 2026 赛事日历')
+          if (this.lastRefreshTime) {
+            Text(this.lastRefreshTime)
               .fontSize(10)
-              .fontColor('#cccccc')
-              .margin({ top: 'auto', bottom: 20 })
+              .fontColor($r('app.color.text_hint'))
           }
-          .width('100%')
-          .height('100%')
-          .backgroundColor('#f5f5f5')
         }
-        .tabBar(this.myTabBar)
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 8 })
+
+        // 近期比赛
+        UpcomingCard({ events: [...this.cslUpcoming, ...this.wcUpcoming] })
+
+        // 热门球队 - 中超
+        Text('中超联赛')
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ left: 16, top: 20, bottom: 8 })
+
+        Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+          ForEach(CSL_TEAMS.slice(0, 6), (team: Team) => {
+            this.HotTeamCard(team.name, team.logo, () => {
+              router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: team.id } });
+            });
+          }, (team: Team) => team.id)
+        }
+        .width('100%')
+        .padding({ left: 10, right: 10 })
+
+        // 热门球队 - 世界杯
+        Text('世界杯')
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ left: 16, top: 20, bottom: 8 })
+
+        Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+          ForEach(WORLD_CUP_TEAMS.slice(0, 8), (team: WorldCupTeam) => {
+            this.HotWcTeamCard(team.name, team.emoji, () => {
+              router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: team.id } });
+            });
+          }, (team: WorldCupTeam) => team.id)
+        }
+        .width('100%')
+        .padding({ left: 10, right: 10 })
+
+        // 鸣谢
+        Text('数据来源: sports-calendar.com')
+          .fontSize(11)
+          .fontColor($r('app.color.text_hint'))
+          .margin({ top: 24, bottom: 16 })
       }
+      .width('100%')
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_bg'))
+  }
+
+  @Builder
+  HotTeamCard(name: string, logo: ResourceStr, action: () => void) {
+    Column() {
+      Image(logo)
+        .width(40)
+        .height(40)
+        .borderRadius(8)
+      Text(name)
+        .fontSize(11)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 4 })
+        .constraintSize({ maxWidth: 70 })
+    }
+    .width(76)
+    .height(72)
+    .margin({ left: 4, right: 4, bottom: 8 })
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .borderRadius(10)
+    .backgroundColor($r('app.color.card_bg'))
+    .onClick(action)
+  }
+
+  @Builder
+  HotWcTeamCard(name: string, emoji: string, action: () => void) {
+    Column() {
+      Text(emoji)
+        .fontSize(28)
+      Text(name)
+        .fontSize(11)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 4 })
+        .constraintSize({ maxWidth: 70 })
+    }
+    .width(76)
+    .height(72)
+    .margin({ left: 4, right: 4, bottom: 8 })
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .borderRadius(10)
+    .backgroundColor($r('app.color.card_bg'))
+    .onClick(action)
+  }
+
+  // ========== Tab 2: 球队 ==========
+  @Builder
+  TeamsTab() {
+    Column() {
+      Tabs({ index: this.currentLeague }) {
+        TabContent() {
+          this.CslGrid()
+        }.tabBar('中超联赛')
+
+        TabContent() {
+          this.WcGrid()
+        }.tabBar('世界杯')
+      }
+      .width('100%')
+      .layoutWeight(1)
       .onChange((index: number) => {
-        this.currentTab = index;
+        this.currentLeague = index;
       })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_bg'))
+  }
 
-      // Loading overlay (shared between tabs)
-      if (this.syncing || this.wcSyncing) {
-        Column() {
-          LoadingProgress()
-            .width(28)
-            .height(28)
-            .color('#1976d2')
-
-          Text('正在同步赛程...')
-            .fontSize(13)
-            .fontColor('#333333')
-            .fontWeight(FontWeight.Medium)
-            .margin({ top: 10 })
-
-          Text(this.currentTab === 0 ? this.getSubscribedNames() : this.getWcSubscribedNames())
-            .fontSize(10)
-            .fontColor('#888888')
-            .margin({ top: 3 })
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .width('75%')
-            .textAlign(TextAlign.Center)
-        }
-        .width(180)
-        .padding({ top: 24, bottom: 20, left: 20, right: 20 })
-        .backgroundColor('rgba(255,255,255,0.95)')
-        .borderRadius(14)
-        .shadow({ radius: 18, color: '#00000030', offsetX: 0, offsetY: 6 })
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .onClick(() => {})
+  @Builder
+  CslGrid() {
+    Scroll() {
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+        ForEach(CSL_TEAMS, (team: Team) => {
+          this.TeamCard(team.name, team.logo, this.subscribedCslIds.includes(team.id), () => {
+            router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: team.id } });
+          });
+        }, (team: Team) => team.id)
       }
+      .width('100%')
+      .padding(12)
     }
     .width('100%')
     .height('100%')
   }
 
-  // Tab bar builders — 底部胶囊式分段控制器（参考 JD 分类页风格）
   @Builder
-  cslTabBar() {
-    Column() {
-      Text('中超联赛')
-        .fontSize(12)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.currentTab === 0 ? '#ffffff' : '#666666')
+  WcGrid() {
+    Scroll() {
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+        ForEach(WORLD_CUP_TEAMS, (team: WorldCupTeam) => {
+          this.WcTeamCard(team.name, team.emoji, this.subscribedWcIds.includes(team.id), () => {
+            router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: team.id } });
+          });
+        }, (team: WorldCupTeam) => team.id)
+      }
+      .width('100%')
+      .padding(12)
     }
     .width('100%')
-    .height(28)
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .padding({ left: 8, right: 8 })
-    .backgroundColor(this.currentTab === 0 ? '#333333' : '#f0f0f0')
-    .borderRadius(14)
-    .onClick(() => { this.currentTab = 0; })
+    .height('100%')
   }
 
   @Builder
-  wcTabBar() {
+  TeamCard(name: string, logo: ResourceStr, subscribed: boolean, action: () => void) {
     Column() {
-      Text('世界杯')
+      Stack() {
+        Image(logo)
+          .width(44)
+          .height(44)
+          .borderRadius(8)
+        if (subscribed) {
+          Text('✓')
+            .fontSize(12)
+            .fontColor(Color.White)
+            .width(18)
+            .height(18)
+            .borderRadius(9)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.brand_success'))
+            .position({ x: '70%', y: -4 })
+        }
+      }
+      .width(44)
+      .height(44)
+      Text(name)
         .fontSize(12)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.currentTab === 1 ? '#ffffff' : '#666666')
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 6 })
+        .constraintSize({ maxWidth: 76 })
     }
-    .width('100%')
-    .height(28)
+    .width(80)
+    .height(80)
+    .margin({ left: 6, right: 6, bottom: 12 })
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
-    .padding({ left: 8, right: 8 })
-    .backgroundColor(this.currentTab === 1 ? '#333333' : '#f0f0f0')
-    .borderRadius(14)
-    .onClick(() => { this.currentTab = 1; })
+    .borderRadius(12)
+    .backgroundColor(subscribed ? $r('app.color.card_bg_subscribed') : $r('app.color.card_bg'))
+    .borderWidth(subscribed ? 1.5 : 0)
+    .borderColor(subscribed ? $r('app.color.brand_success') : Color.Transparent)
+    .onClick(action)
   }
 
   @Builder
-  myTabBar() {
+  WcTeamCard(name: string, emoji: string, subscribed: boolean, action: () => void) {
     Column() {
-      Text('我的')
+      Stack() {
+        Text(emoji)
+          .fontSize(30)
+        if (subscribed) {
+          Text('✓')
+            .fontSize(12)
+            .fontColor(Color.White)
+            .width(18)
+            .height(18)
+            .borderRadius(9)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.brand_success'))
+            .position({ x: '70%', y: -4 })
+        }
+      }
+      .width(44)
+      .height(44)
+      Text(name)
         .fontSize(12)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.currentTab === 2 ? '#ffffff' : '#666666')
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 6 })
+        .constraintSize({ maxWidth: 76 })
     }
-    .width('100%')
-    .height(28)
+    .width(80)
+    .height(80)
+    .margin({ left: 6, right: 6, bottom: 12 })
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
-    .padding({ left: 8, right: 8 })
-    .backgroundColor(this.currentTab === 2 ? '#333333' : '#f0f0f0')
-    .borderRadius(14)
-    .onClick(() => { this.currentTab = 2; })
+    .borderRadius(12)
+    .backgroundColor(subscribed ? $r('app.color.card_bg_subscribed') : $r('app.color.card_bg'))
+    .borderWidth(subscribed ? 1.5 : 0)
+    .borderColor(subscribed ? $r('app.color.brand_success') : Color.Transparent)
+    .onClick(action)
+  }
+
+  // ========== Tab 3: 我的 ==========
+  @Builder
+  MyTab() {
+    Column() {
+      // 标题栏
+      Row() {
+        Text('我的订阅')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Text('⚙')
+          .fontSize(22)
+          .fontColor($r('app.color.text_hint'))
+          .onClick(() => router.pushUrl({ url: 'pages/Settings' }))
+          .padding({ left: 12 })
+      }
+      .width('100%')
+      .height(52)
+      .padding({ left: 16, right: 16 })
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor($r('app.color.card_bg'))
+
+      Scroll() {
+        Column() {
+          if (this.subscribedCslIds.length === 0 && this.subscribedWcIds.length === 0) {
+            Column() {
+              Text('📭')
+                .fontSize(48)
+              Text('还没有订阅任何球队')
+                .fontSize(16)
+                .fontColor($r('app.color.text_hint'))
+                .margin({ top: 12 })
+              Text('去「球队」页面选择喜欢的球队吧')
+                .fontSize(14)
+                .fontColor($r('app.color.text_hint'))
+                .margin({ top: 4 })
+            }
+            .width('100%')
+            .padding({ top: 60 })
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+          } else {
+            if (this.subscribedCslIds.length > 0) {
+              Text('中超联赛')
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+                .margin({ top: 12, bottom: 6 })
+              Column() {
+                ForEach(this.subscribedCslIds, (id: string) => {
+                  this.MyCslSubscribedRow(id)
+                }, (id: string) => id)
+              }
+              .width('100%')
+              .backgroundColor($r('app.color.card_bg'))
+              .borderRadius(12)
+              .padding({ left: 16, right: 16 })
+            }
+
+            if (this.subscribedWcIds.length > 0) {
+              Text('世界杯')
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+                .margin({ top: 12, bottom: 6 })
+              Column() {
+                ForEach(this.subscribedWcIds, (id: string) => {
+                  this.MyWcSubscribedRow(id)
+                }, (id: string) => id)
+              }
+              .width('100%')
+              .backgroundColor($r('app.color.card_bg'))
+              .borderRadius(12)
+              .padding({ left: 16, right: 16 })
+            }
+          }
+
+          // 刷新按钮
+          Button(this.isSyncing ? '同步中...' : '刷新赛程数据')
+            .width('100%')
+            .height(44)
+            .fontSize(15)
+            .fontColor(Color.White)
+            .backgroundColor($r('app.color.brand_primary'))
+            .borderRadius(10)
+            .margin({ top: 20 })
+            .enabled(!this.isSyncing)
+            .onClick(() => this.doRefreshData())
+
+          Text(`上次同步: ${this.mySyncTime}`)
+            .fontSize(12)
+            .fontColor($r('app.color.text_hint'))
+            .margin({ top: 12 })
+
+          // 底部入口
+          Row() {
+            Text('隐私协议')
+              .fontSize(14)
+              .fontColor($r('app.color.brand_primary'))
+              .onClick(() => router.pushUrl({ url: 'pages/PrivacyPolicy' }))
+            Text('|')
+              .fontSize(14)
+              .fontColor($r('app.color.text_hint'))
+              .margin({ left: 16, right: 16 })
+            Text('更新日志')
+              .fontSize(14)
+              .fontColor($r('app.color.brand_primary'))
+              .onClick(() => router.pushUrl({ url: 'pages/Changelog' }))
+          }
+          .margin({ top: 24, bottom: 20 })
+        }
+        .padding({ left: 16, right: 16 })
+      }
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_bg'))
+  }
+
+  @Builder
+  MyCslSubscribedRow(id: string) {
+    Row() {
+      Image(CSL_TEAMS.find(t => t.id === id)?.logo ?? $r('app.media.startIcon'))
+        .width(32)
+        .height(32)
+        .borderRadius(6)
+        .margin({ right: 12 })
+      Text(CSL_TEAMS.find(t => t.id === id)?.name ?? '')
+        .fontSize(15)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
+      Text('已订阅')
+        .fontSize(13)
+        .fontColor($r('app.color.brand_success'))
+      Text('>')
+        .fontSize(14)
+        .fontColor($r('app.color.text_hint'))
+        .margin({ left: 8 })
+    }
+    .width('100%')
+    .height(52)
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: id } });
+    })
+  }
+
+  @Builder
+  MyWcSubscribedRow(id: string) {
+    Row() {
+      Text(WORLD_CUP_TEAMS.find(t => t.id === id)?.emoji ?? '')
+        .fontSize(24)
+        .margin({ right: 12 })
+      Text(WORLD_CUP_TEAMS.find(t => t.id === id)?.name ?? '')
+        .fontSize(15)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
+      Text('已订阅')
+        .fontSize(13)
+        .fontColor($r('app.color.brand_success'))
+      Text('>')
+        .fontSize(14)
+        .fontColor($r('app.color.text_hint'))
+        .margin({ left: 8 })
+    }
+    .width('100%')
+    .height(52)
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/TeamDetail', params: { teamId: id } });
+    })
+  }
+
+  // ========== Tab Bar ==========
+  @Builder
+  TabBarItem(title: string, index: number) {
+    Column() {
+      Text(title)
+        .fontSize(14)
+        .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.currentTab === index ? $r('app.color.brand_primary') : $r('app.color.text_hint'))
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+  }
+
+  // ========== Utils ==========
+  private formatDateTime(ts: number): string {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())} ${this.pad(d.getHours())}:${this.pad(d.getMinutes())}`;
+  }
+
+  private pad(n: number): string {
+    return n < 10 ? `0${n}` : `${n}`;
   }
 }
-

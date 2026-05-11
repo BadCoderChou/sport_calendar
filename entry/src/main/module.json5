@@ -26,6 +26,14 @@
           when: "inuse"
         }
       },
+      {
+        name: "ohos.permission.INTERNET",
+        reason: "$string:internet_reason",
+        usedScene: {
+          abilities: ["EntryAbility"],
+          when: "inuse"
+        }
+      },
     ],
     "pages": "$profile:main_pages",
     "abilities": [
